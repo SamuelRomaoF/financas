@@ -18,7 +18,7 @@ interface LoginFormData {
 }
 
 export default function LoginPage() {
-  const { signIn } = useAuth();
+  const { user, signIn } = useAuth();
   const { checkAccess, createTrialSubscription } = useSubscription();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
@@ -35,6 +35,12 @@ export default function LoginPage() {
   const rememberMe = watch('rememberMe');
   const email = watch('email');
   
+  useEffect(() => {
+    if (user) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [user, navigate]);
+
   useEffect(() => {
     if (rememberMe && email) {
       localStorage.setItem('rememberedEmail', email);

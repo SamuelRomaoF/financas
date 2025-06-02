@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { BarChart3, PieChart, LineChart, Download, Calendar } from 'lucide-react';
 import Button from '../../components/ui/Button';
+import { useSubscription } from '../../hooks/useSubscription';
 
 interface Report {
   id: string;
@@ -15,7 +16,7 @@ interface Report {
 const mockReports: Report[] = [
   {
     id: '1',
-    title: 'Relatório de Despesas',
+    title: 'Relatório de Despesas (Mensal)',
     description: 'Análise detalhada de todas as despesas por categoria',
     type: 'expense',
     period: 'monthly',
@@ -24,11 +25,20 @@ const mockReports: Report[] = [
   },
   {
     id: '2',
-    title: 'Evolução Patrimonial',
-    description: 'Gráfico de evolução do patrimônio ao longo do tempo',
-    type: 'balance',
-    period: 'yearly',
-    lastGenerated: '2024-03-01',
+    title: 'Relatório de Despesas (Semanal)',
+    description: 'Análise semanal de todas as despesas por categoria',
+    type: 'expense',
+    period: 'weekly',
+    lastGenerated: '2024-03-18',
+    format: 'pdf'
+  },
+  {
+    id: '5',
+    title: 'Relatório de Receitas (Diário)',
+    description: 'Análise diária de todas as receitas',
+    type: 'income',
+    period: 'daily',
+    lastGenerated: '2024-03-19',
     format: 'pdf'
   },
   {
@@ -51,9 +61,46 @@ const mockReports: Report[] = [
   }
 ];
 
+const ALL_PERIOD_OPTIONS = [
+  { value: 'daily', label: 'Diário' },
+  { value: 'weekly', label: 'Semanal' },
+  { value: 'monthly', label: 'Mensal' },
+  { value: 'yearly', label: 'Anual' },
+] as const;
+
+const FREE_PLAN_PERIOD_OPTIONS = [
+  { value: 'daily', label: 'Diário' },
+  { value: 'weekly', label: 'Semanal' },
+] as const;
+
+const BASICO_PLAN_PERIOD_OPTIONS = [
+  { value: 'weekly', label: 'Semanal' },
+  { value: 'monthly', label: 'Mensal' },
+] as const;
+
 export default function ReportsPage() {
+  const { subscription, isLoading: subscriptionIsLoading } = useSubscription();
+  const [selectedPeriod, setSelectedPeriod] = useState<Report['period']>('weekly');
   const [reports] = useState<Report[]>(mockReports);
-  const [selectedPeriod, setSelectedPeriod] = useState<Report['period']>('monthly');
+
+  const periodOptions = useMemo(() => {
+    if (subscriptionIsLoading) return [];
+    const plan = subscription?.plan;
+    if (plan === 'free') {
+      return FREE_PLAN_PERIOD_OPTIONS;
+    }
+    if (plan === 'basic') {
+      return BASICO_PLAN_PERIOD_OPTIONS;
+    }
+    return ALL_PERIOD_OPTIONS;
+  }, [subscription?.plan, subscriptionIsLoading]);
+
+  useEffect(() => {
+    const currentSelectedIsValid = periodOptions.some(option => option.value === selectedPeriod);
+    if (!currentSelectedIsValid && periodOptions.length > 0) {
+      setSelectedPeriod(periodOptions[0].value as Report['period']);
+    }
+  }, [periodOptions, selectedPeriod]);
 
   const getReportIcon = (type: Report['type']) => {
     switch (type) {
@@ -90,10 +137,9 @@ export default function ReportsPage() {
             onChange={(e) => setSelectedPeriod(e.target.value as Report['period'])}
             className="form-select rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-sm"
           >
-            <option value="daily">Diário</option>
-            <option value="weekly">Semanal</option>
-            <option value="monthly">Mensal</option>
-            <option value="yearly">Anual</option>
+            {periodOptions.map(option => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
           </select>
           <Button>
             <Calendar className="h-4 w-4 mr-2" />

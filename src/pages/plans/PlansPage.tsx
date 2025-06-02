@@ -2,6 +2,7 @@ import { Check, CreditCard, Crown, Star } from 'lucide-react';
 import { useState } from 'react';
 import Button from '../../components/ui/Button';
 import { useAuth } from '../../hooks/useAuth';
+import { useSubscription } from '../../hooks/useSubscription';
 
 interface Plan {
   id: string;
@@ -43,7 +44,7 @@ const plans: Plan[] = [
   {
     id: 'premium',
     name: 'Premium',
-    price: 39.90,
+    price: 69.90,
     period: 'monthly',
     features: [
       'Todas as features do plano Básico',
@@ -58,11 +59,8 @@ const plans: Plan[] = [
 
 export default function PlansPage() {
   const { user } = useAuth();
+  const { subscription, loading: loadingSubscription } = useSubscription();
   const [selectedPeriod, setSelectedPeriod] = useState<'monthly' | 'yearly'>('monthly');
-
-  // Simulando uma data de expiração para demonstração
-  const expirationDate = new Date();
-  expirationDate.setMonth(expirationDate.getMonth() + 1);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -71,15 +69,38 @@ export default function PlansPage() {
     }).format(value);
   };
 
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('pt-BR');
+  const formatDate = (dateString: string | null | undefined) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleDateString('pt-BR');
   };
 
-  const getPlanDetails = (planId: string) => {
+  const getPlanDetails = (planId: string | null | undefined) => {
+    if (!planId) return plans.find(plan => plan.id === 'free');
     return plans.find(plan => plan.id === planId);
   };
 
-  const currentPlan = getPlanDetails(user?.plan || 'free');
+  const currentPlanDetails = getPlanDetails(subscription?.plan);
+  const currentPlanIsTrial = subscription?.plan === 'free' && subscription?.status === 'active' && subscription?.trial_ends_at;
+
+  const filteredPlansToDisplay = plans.filter(plan => {
+    if (subscription?.status === 'active') {
+      if (subscription.plan === 'basic') {
+        return plan.id === 'premium'; // Se no básico, mostrar apenas o premium para upgrade
+      }
+      if (subscription.plan === 'premium') {
+        return false; // Se no premium, não mostrar nenhum card adicional na lista de opções
+      }
+    }
+    return true; // Se no free ou sem plano, ou se a lógica acima não se aplicar, mostrar o plano (será filtrado no map para não mostrar o atual como opção)
+  });
+
+  if (loadingSubscription) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <p className="text-gray-500 dark:text-gray-400">Carregando informações do plano...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -100,14 +121,21 @@ export default function PlansPage() {
             </h2>
             <div className="mt-2">
               <p className="text-2xl font-bold text-primary-600 dark:text-primary-400">
-                {currentPlan?.name}
+                {currentPlanDetails?.name} {currentPlanIsTrial ? "(Trial)" : ""}
               </p>
-              <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-                Expira em: {formatDate(expirationDate)}
-              </p>
+              {subscription?.trial_ends_at && currentPlanIsTrial && (
+                <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+                  Trial expira em: {formatDate(subscription.trial_ends_at)}
+                </p>
+              )}
+              {subscription?.plan !== 'free' && subscription?.current_period_ends_at && (
+                 <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+                   Expira em: {formatDate(subscription.current_period_ends_at)}
+                 </p>
+              )}
             </div>
           </div>
-          {user?.plan === 'free' && (
+          {subscription?.plan === 'free' && (
             <Button>
               <Star className="h-4 w-4 mr-2" />
               Fazer Upgrade
@@ -116,89 +144,145 @@ export default function PlansPage() {
         </div>
       </div>
 
-      {/* Seletor de período */}
-      <div className="flex justify-center">
-        <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 p-1">
-          <button
-            onClick={() => setSelectedPeriod('monthly')}
-            className={`px-4 py-2 text-sm font-medium rounded-md ${
-              selectedPeriod === 'monthly'
-                ? 'bg-primary-500 text-white'
-                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-            }`}
-          >
-            Mensal
-          </button>
-          <button
-            onClick={() => setSelectedPeriod('yearly')}
-            className={`px-4 py-2 text-sm font-medium rounded-md ${
-              selectedPeriod === 'yearly'
-                ? 'bg-primary-500 text-white'
-                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-            }`}
-          >
-            Anual
-            <span className="ml-1 text-xs text-success-600 dark:text-success-400">-20%</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Lista de planos */}
-      <div className="grid gap-6 md:grid-cols-3">
-        {plans.map((plan) => {
-          const price = selectedPeriod === 'yearly' ? plan.price * 0.8 * 12 : plan.price;
-          const isCurrentPlan = user?.plan === plan.id;
-
-          return (
-            <div
-              key={plan.id}
-              className={`relative bg-white dark:bg-gray-800 rounded-lg shadow-sm border ${
-                plan.recommended
-                  ? 'border-primary-500 dark:border-primary-500'
-                  : 'border-gray-200 dark:border-gray-700'
-              } p-6`}
-            >
-              {plan.recommended && (
-                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                  <span className="bg-primary-500 text-white text-xs font-medium px-3 py-1 rounded-full">
-                    Recomendado
-                  </span>
-                </div>
-              )}
-
-              <div className="text-center">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{plan.name}</h3>
-                <div className="mt-4">
-                  <span className="text-4xl font-bold text-gray-900 dark:text-white">
-                    {formatCurrency(price)}
-                  </span>
-                  <span className="text-gray-500 dark:text-gray-400">
-                    /{selectedPeriod === 'yearly' ? 'ano' : 'mês'}
-                  </span>
-                </div>
-
-                <ul className="mt-6 space-y-4 text-left">
-                  {plan.features.map((feature, index) => (
-                    <li key={index} className="flex items-start">
-                      <Check className="h-5 w-5 text-success-500 flex-shrink-0 mr-2" />
-                      <span className="text-sm text-gray-600 dark:text-gray-300">{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-
-                <Button
-                  variant={isCurrentPlan ? 'outline' : 'primary'}
-                  className="mt-8 w-full"
-                  disabled={isCurrentPlan}
+      {/* Condicionalmente renderiza o seletor de período e a lista de planos */}
+      {!(subscription?.status === 'active' && subscription?.plan === 'premium') && filteredPlansToDisplay.length > 0 && (
+        <>
+          {/* Seletor de período - Mostrar apenas se o plano for 'free' ou não houver plano */}
+          {!(subscription?.status === 'active' && subscription?.plan === 'basic') && (
+            <div className="flex justify-center py-4">
+              <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 p-1">
+                <button
+                  onClick={() => setSelectedPeriod('monthly')}
+                  className={`px-4 py-2 text-sm font-medium rounded-md ${
+                    selectedPeriod === 'monthly'
+                      ? 'bg-primary-500 text-white'
+                      : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                  }`}
                 >
-                  <CreditCard className="h-4 w-4 mr-2" />
-                  {isCurrentPlan ? 'Plano Atual' : 'Assinar Agora'}
-                </Button>
+                  Mensal
+                </button>
+                <button
+                  onClick={() => setSelectedPeriod('yearly')}
+                  className={`px-4 py-2 text-sm font-medium rounded-md ${
+                    selectedPeriod === 'yearly'
+                      ? 'bg-primary-500 text-white'
+                      : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                  }`}
+                >
+                  Anual
+                  <span className="ml-1 text-xs text-success-600 dark:text-success-400">-20%</span>
+                </button>
               </div>
             </div>
-          );
-        })}
-      </div>
+          )}
+
+          {/* Lista de planos */}
+          {filteredPlansToDisplay.length === 1 ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 place-items-center">
+              {/* Div vazia para a primeira coluna em telas médias e maiores */} 
+              <div className="hidden md:block"></div>
+              {/* Card do plano (único) na coluna central ou ocupando tudo em telas menores */} 
+              {filteredPlansToDisplay.map((plan) => {
+                const price = selectedPeriod === 'yearly' && plan.id !== 'free' ? plan.price * 0.8 * 12 : plan.price;
+                const buttonText = 
+                  (subscription?.plan === 'free' && plan.id !== 'free') ? 'Assinar Agora' :
+                  (subscription?.plan === 'basic' && plan.id === 'premium') ? 'Fazer Upgrade' :
+                  'Assinar Agora';
+
+                return (
+                  <div
+                    key={plan.id}
+                    className={`relative bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 w-full max-w-md`}
+                  >
+                    {/* Conteúdo do card como antes, sem a lógica de `plan.recommended` pois é o único card */}
+                    <div className="text-center">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{plan.name}</h3>
+                      <div className="mt-4">
+                        <span className="text-4xl font-bold text-gray-900 dark:text-white">
+                          {plan.id === 'free' ? 'R$ 0,00' : formatCurrency(price)}
+                        </span>
+                        <span className="text-gray-500 dark:text-gray-400">
+                          /{selectedPeriod === 'yearly' && plan.id !== 'free' ? 'ano' : 'mês'}
+                        </span>
+                      </div>
+                      <ul className="mt-6 space-y-4 text-left">
+                        {plan.features.map((feature, index) => (
+                          <li key={index} className="flex items-start">
+                            <Check className="h-5 w-5 text-success-500 flex-shrink-0 mr-2" />
+                            <span className="text-sm text-gray-600 dark:text-gray-300">{feature}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      <Button variant={'primary'} className="mt-8 w-full">
+                        <CreditCard className="h-4 w-4 mr-2" />
+                        {buttonText}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+               {/* Div vazia para a terceira coluna em telas médias e maiores */} 
+              <div className="hidden md:block"></div>
+            </div>
+          ) : (
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {filteredPlansToDisplay.map((plan) => {
+                  const price = selectedPeriod === 'yearly' && plan.id !== 'free' ? plan.price * 0.8 * 12 : plan.price;
+                  if (subscription?.plan === plan.id && subscription?.status === 'active') {
+                    return null; 
+                  }
+                  const buttonText = 
+                    (subscription?.plan === 'free' && plan.id !== 'free') ? 'Assinar Agora' :
+                    (subscription?.plan === 'basic' && plan.id === 'premium') ? 'Fazer Upgrade' :
+                    'Assinar Agora';
+
+                  return (
+                    <div
+                      key={plan.id}
+                      className={`relative bg-white dark:bg-gray-800 rounded-lg shadow-sm border ${
+                        plan.recommended
+                          ? 'border-primary-500 dark:border-primary-500'
+                          : 'border-gray-200 dark:border-gray-700'
+                      } p-6`}
+                    >
+                      {plan.recommended && (
+                        <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                          <span className="bg-primary-500 text-white text-xs font-medium px-3 py-1 rounded-full">
+                            Recomendado
+                          </span>
+                        </div>
+                      )}
+                      {/* Restante do conteúdo do card para múltiplos cards */}
+                      <div className="text-center">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{plan.name}</h3>
+                        <div className="mt-4">
+                          <span className="text-4xl font-bold text-gray-900 dark:text-white">
+                            {plan.id === 'free' ? 'R$ 0,00' : formatCurrency(price)}
+                          </span>
+                          <span className="text-gray-500 dark:text-gray-400">
+                            /{selectedPeriod === 'yearly' && plan.id !== 'free' ? 'ano' : 'mês'}
+                          </span>
+                        </div>
+                        <ul className="mt-6 space-y-4 text-left">
+                          {plan.features.map((feature, index) => (
+                            <li key={index} className="flex items-start">
+                              <Check className="h-5 w-5 text-success-500 flex-shrink-0 mr-2" />
+                              <span className="text-sm text-gray-600 dark:text-gray-300">{feature}</span>
+                            </li>
+                          ))}
+                        </ul>
+                        <Button variant={'primary'} className="mt-8 w-full">
+                          <CreditCard className="h-4 w-4 mr-2" />
+                          {buttonText}
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 } 

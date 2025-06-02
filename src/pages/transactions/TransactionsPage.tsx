@@ -6,6 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Ca
 import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
 import { formatCurrency } from '../../utils/formatCurrency';
+import { useSubscription } from '../../hooks/useSubscription';
+
+const GRATIS_TRANSACTION_LIMIT = 50;
+const BASICO_TRANSACTION_LIMIT = 100;
 
 interface BankAccount {
   id: string;
@@ -46,6 +50,7 @@ export default function TransactionsPage() {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedType, setSelectedType] = useState('');
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
+  const { subscription } = useSubscription();
 
   // Dados de exemplo - Contas Bancárias
   const [bankAccounts] = useState<BankAccount[]>([
@@ -184,6 +189,14 @@ export default function TransactionsPage() {
     return matchesSearch && matchesCategory && matchesType && matchesPaymentMethod;
   });
 
+  const userPlan = subscription?.plan;
+  const isGratisPlan = userPlan === 'free';
+  const transactionsCount = transactions.length;
+  const gratisLimitReached = isGratisPlan && transactionsCount >= GRATIS_TRANSACTION_LIMIT;
+
+  const isBasicoPlan = userPlan === 'basic';
+  const basicoLimitReached = isBasicoPlan && transactionsCount >= BASICO_TRANSACTION_LIMIT;
+
   // Função para obter detalhes do método de pagamento
   const getPaymentMethodDetails = (transaction: Transaction) => {
     if (!transaction.paymentMethod) return '';
@@ -216,10 +229,23 @@ export default function TransactionsPage() {
         <Button
           variant="primary"
           onClick={() => setIsNewTransactionModalOpen(true)}
+          disabled={gratisLimitReached || basicoLimitReached}
         >
           + Nova Transação
         </Button>
       </div>
+      {gratisLimitReached && (
+        <p className="text-sm text-yellow-600 dark:text-yellow-400 text-center">
+          Você atingiu o limite de {GRATIS_TRANSACTION_LIMIT} transações do plano Gratuito. 
+          <a href="/planos" className="underline hover:text-yellow-500">Faça upgrade</a> para transações ilimitadas.
+        </p>
+      )}
+      {basicoLimitReached && (
+        <p className="text-sm text-yellow-600 dark:text-yellow-400 text-center">
+          Você atingiu o limite de {BASICO_TRANSACTION_LIMIT} transações do plano Básico. 
+          <a href="/planos" className="underline hover:text-yellow-500">Faça upgrade</a> para o plano Premium para transações ilimitadas.
+        </p>
+      )}
 
       <Card>
         <CardHeader>
@@ -324,13 +350,16 @@ export default function TransactionsPage() {
         </CardContent>
       </Card>
 
-      <NewTransactionModal
-        isOpen={isNewTransactionModalOpen}
-        onClose={() => setIsNewTransactionModalOpen(false)}
-        onSubmit={handleNewTransaction}
-        bankAccounts={bankAccounts}
-        creditCards={creditCards}
-      />
+      {isNewTransactionModalOpen && (
+        <NewTransactionModal
+          isOpen={isNewTransactionModalOpen}
+          onClose={() => setIsNewTransactionModalOpen(false)}
+          onSubmit={handleNewTransaction}
+          bankAccounts={bankAccounts}
+          creditCards={creditCards}
+          userPlan={subscription?.plan || null}
+        />
+      )}
     </div>
   );
 }

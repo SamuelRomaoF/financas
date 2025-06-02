@@ -3,6 +3,7 @@ import { ChangeEvent, useState } from 'react';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 import Select from '../ui/Select';
+import { SubscriptionPlan } from '../../hooks/useSubscription';
 
 interface BankAccount {
   id: string;
@@ -40,6 +41,7 @@ interface NewTransactionModalProps {
   }) => void;
   bankAccounts: BankAccount[];
   creditCards: CreditCard[];
+  userPlan: SubscriptionPlan | null;
 }
 
 export default function NewTransactionModal({
@@ -47,7 +49,8 @@ export default function NewTransactionModal({
   onClose,
   onSubmit,
   bankAccounts,
-  creditCards
+  creditCards,
+  userPlan
 }: NewTransactionModalProps) {
   const [type, setType] = useState<'entrada' | 'saida'>('entrada');
   const [description, setDescription] = useState('');
@@ -253,71 +256,59 @@ export default function NewTransactionModal({
               />
             </div>
 
-            {/* Forma de Pagamento */}
-            {type === 'saida' && (
-              <div className="space-y-2">
-                <label 
-                  htmlFor="paymentMethod"
-                  className="text-sm font-medium text-gray-700 dark:text-gray-300"
-                >
-                  Forma de Pagamento
-                </label>
-                <Select
-                  id="paymentMethod"
-                  value={paymentMethod}
-                  onChange={(e: ChangeEvent<HTMLSelectElement>) => {
-                    setPaymentMethod(e.target.value as 'pix' | 'dinheiro' | 'debito' | 'credito');
-                    setBankAccountId('');
-                    setCreditCardId('');
-                  }}
-                  required
-                >
-                  <option value="pix">PIX</option>
-                  <option value="dinheiro">Dinheiro</option>
-                  <option value="debito">Débito</option>
-                  <option value="credito">Crédito</option>
-                </Select>
-              </div>
-            )}
+            {/* Método de Pagamento */}
+            <div className="space-y-2">
+              <label 
+                htmlFor="paymentMethod"
+                className="text-sm font-medium text-gray-700 dark:text-gray-300"
+              >
+                Método de Pagamento
+              </label>
+              <Select
+                id="paymentMethod"
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value as typeof paymentMethod)}
+                required
+              >
+                <option value="pix">PIX</option>
+                <option value="dinheiro">Dinheiro</option>
+                <option value="debito">Débito</option>
+                <option value="credito">Crédito</option>
+              </Select>
+            </div>
 
-            {/* Conta Bancária (para débito) */}
-            {type === 'saida' && paymentMethod === 'debito' && (
+            {/* Conta de Débito - Condicional ao plano */}
+            {userPlan !== 'free' && paymentMethod === 'debito' && (
               <div className="space-y-2">
-                <label 
-                  htmlFor="bankAccount"
-                  className="text-sm font-medium text-gray-700 dark:text-gray-300"
-                >
-                  Conta Bancária
+                <label htmlFor="bankAccountId" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Conta de Débito
                 </label>
                 <Select
-                  id="bankAccount"
+                  id="bankAccountId"
                   value={bankAccountId}
-                  onChange={(e: ChangeEvent<HTMLSelectElement>) => setBankAccountId(e.target.value)}
+                  onChange={(e) => setBankAccountId(e.target.value)}
                   required
                 >
                   <option value="">Selecione uma conta</option>
-                  {bankAccounts.map(account => (
-                    <option key={account.id} value={account.id}>
-                      {account.bankName} - {account.accountNumber}
+                  {bankAccounts.map(acc => (
+                    <option key={acc.id} value={acc.id}>
+                      {acc.bankName} - {acc.accountNumber}
                     </option>
                   ))}
                 </Select>
               </div>
             )}
 
-            {/* Cartão de Crédito */}
-            {type === 'saida' && paymentMethod === 'credito' && (
+            {/* Cartão de Crédito - Condicional ao plano */}
+            {userPlan !== 'free' && paymentMethod === 'credito' && (
               <div className="space-y-2">
-                <label 
-                  htmlFor="creditCard"
-                  className="text-sm font-medium text-gray-700 dark:text-gray-300"
-                >
+                <label htmlFor="creditCardId" className="text-sm font-medium text-gray-700 dark:text-gray-300">
                   Cartão de Crédito
                 </label>
                 <Select
-                  id="creditCard"
+                  id="creditCardId"
                   value={creditCardId}
-                  onChange={(e: ChangeEvent<HTMLSelectElement>) => setCreditCardId(e.target.value)}
+                  onChange={(e) => setCreditCardId(e.target.value)}
                   required
                 >
                   <option value="">Selecione um cartão</option>

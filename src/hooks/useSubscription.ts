@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { Database } from '../types/supabase';
 import { useAuth } from './useAuth';
 
-export type SubscriptionPlan = 'free' | 'basic' | 'premium';
+export type SubscriptionPlan = Database["public"]["Enums"]["subscription_plan"];
 export type SubscriptionStatus = 'active' | 'canceled' | 'expired';
 
 type Subscription = Database['public']['Tables']['subscriptions']['Row'];
@@ -12,9 +12,10 @@ export function useSubscription() {
   const { user } = useAuth();
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
+  const userId = user?.id;
 
   const fetchSubscription = useCallback(async () => {
-    if (!user) {
+    if (!userId) {
       setSubscription(null);
       setLoading(false);
       return;
@@ -25,7 +26,7 @@ export function useSubscription() {
       const { data, error } = await supabase
         .from('subscriptions')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
@@ -38,7 +39,7 @@ export function useSubscription() {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [userId]);
 
   useEffect(() => {
     fetchSubscription();
@@ -46,21 +47,16 @@ export function useSubscription() {
 
   const createTrialSubscription = async () => {
     try {
-      // Verifica se o usuário está autenticado
       if (!user?.id) {
-        // Aguarda até 5 segundos pelo usuário
         for (let i = 0; i < 10; i++) {
           await new Promise(resolve => setTimeout(resolve, 500));
           if (user?.id) break;
         }
-        
-        // Se ainda não tiver usuário, lança erro
         if (!user?.id) {
           throw new Error('Usuário não autenticado. Por favor, tente fazer login novamente.');
         }
       }
 
-      // Verifica se já existe uma assinatura
       const { data: existingSubscription, error: fetchError } = await supabase
         .from('subscriptions')
         .select('*')
@@ -69,19 +65,17 @@ export function useSubscription() {
         .limit(1)
         .single();
 
-      if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 = no rows returned
+      if (fetchError && fetchError.code !== 'PGRST116') {
         throw fetchError;
       }
 
-      // Se já existe uma assinatura ativa, retorna ela
       if (existingSubscription?.status === 'active') {
         setSubscription(existingSubscription);
         return { subscription: existingSubscription, error: null };
       }
 
-      // Cria uma nova assinatura trial
       const trialEndsAt = new Date();
-      trialEndsAt.setDate(trialEndsAt.getDate() + 7); // 7 dias de trial
+      trialEndsAt.setDate(trialEndsAt.getDate() + 7);
 
       const { data: newSubscription, error: createError } = await supabase
         .from('subscriptions')
@@ -105,7 +99,7 @@ export function useSubscription() {
   };
 
   const updateSubscription = useCallback(async (plan: SubscriptionPlan) => {
-    if (!user) return { error: new Error('Usuário não autenticado') };
+    if (!userId) return { error: new Error('Usuário não autenticado') };
 
     try {
       const { data, error } = await supabase
@@ -115,11 +109,11 @@ export function useSubscription() {
           status: 'active',
           trial_ends_at: null,
           current_period_starts_at: new Date().toISOString(),
-          current_period_ends_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 dias
+          current_period_ends_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
           canceled_at: null,
           updated_at: new Date().toISOString()
         })
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .select()
         .single();
 
@@ -130,10 +124,10 @@ export function useSubscription() {
       console.error('Erro ao atualizar assinatura:', error);
       return { data: null, error };
     }
-  }, [user]);
+  }, [userId]);
 
   const cancelSubscription = useCallback(async () => {
-    if (!user) return { error: new Error('Usuário não autenticado') };
+    if (!userId) return { error: new Error('Usuário não autenticado') };
 
     try {
       const { data, error } = await supabase
@@ -143,7 +137,7 @@ export function useSubscription() {
           canceled_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .select()
         .single();
 
@@ -154,14 +148,14 @@ export function useSubscription() {
       console.error('Erro ao cancelar assinatura:', error);
       return { data: null, error };
     }
-  }, [user]);
+  }, [userId]);
 
   const checkAccess = useCallback(async () => {
-    if (!user) return false;
+    if (!userId) return false;
 
     try {
       const { data: hasAccess } = await supabase.rpc('check_user_access', {
-        user_uuid: user.id
+        user_uuid: userId
       });
 
       return hasAccess;
@@ -169,11 +163,11 @@ export function useSubscription() {
       console.error('Erro ao verificar acesso:', error);
       return false;
     }
-  }, [user]);
+  }, [userId]);
 
   return {
     subscription,
-    loading,
+    isLoading: loading,
     createTrialSubscription,
     updateSubscription,
     cancelSubscription,

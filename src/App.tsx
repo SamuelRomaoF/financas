@@ -8,7 +8,7 @@ import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
 import BanksPage from './pages/banks/BanksPage';
 import CategoriesPage from './pages/categories/CategoriesPage';
-import DashboardPage from './pages/dashboard/DashboardPage';
+import DashboardLoader from './pages/dashboard/DashboardLoader';
 import GoalsPage from './pages/goals/GoalsPage';
 import InvestmentsPage from './pages/Investimentos';
 import LandingPage from './pages/landing/LandingPage';
@@ -18,6 +18,8 @@ import SettingsPage from './pages/settings/SettingsPage';
 import TransactionsPage from './pages/transactions/TransactionsPage';
 import WalletPage from './pages/wallet/WalletPage';
 import WhatsAppConfigPage from './pages/whatsapp/WhatsAppConfigPage';
+import RestrictedFeatureRoute from './components/routes/RestrictedFeatureRoute';
+import { SubscriptionPlan } from './hooks/useSubscription';
 
 export default function App() {
   return (
@@ -55,19 +57,24 @@ export default function App() {
         
         {/* Rotas protegidas */}
         <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/bancos" element={<BanksPage />} />
+          <Route path="/dashboard" element={<DashboardLoader />} />
           <Route path="/transacoes" element={<TransactionsPage />} />
-          <Route path="/investimentos" element={<InvestmentsPage />} />
-          <Route path="/metas" element={<GoalsPage />} />
-          <Route path="/carteira" element={<WalletPage />} />
-          <Route path="/categorias" element={<CategoriesPage />} />
-          <Route path="/alertas" element={<AlertsPage />} />
-          <Route path="/relatorios" element={<ReportsPage />} />
-          <Route path="/whatsapp" element={<WhatsAppConfigPage />} />
           <Route path="/planos" element={<PlansPage />} />
           <Route path="/configuracoes" element={<SettingsPage />} />
           <Route path="/conta" element={<AccountPage />} />
+          <Route path="/relatorios" element={<ReportsPage />} />
+          {/* Rotas agora permitidas para todos os planos logados (incluindo free) */}
+          <Route path="/categorias" element={<CategoriesPage />} />
+          <Route path="/whatsapp" element={<WhatsAppConfigPage />} />
+
+          {/* Rotas restritas APENAS para basic e premium */}
+          <Route element={<RestrictedFeatureRoute allowedPlans={['basic', 'premium'] as SubscriptionPlan[]} />}>
+            <Route path="/bancos" element={<BanksPage />} />
+            <Route path="/investimentos" element={<InvestmentsPage />} />
+            <Route path="/metas" element={<GoalsPage />} />
+            <Route path="/carteira" element={<WalletPage />} />
+            <Route path="/alertas" element={<AlertsPage />} />
+          </Route>
         </Route>
       </Routes>
     </>
