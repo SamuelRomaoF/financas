@@ -1,11 +1,13 @@
+import { AuthError } from '@supabase/supabase-js';
+import { Mail, UserPlus, Wallet, X } from 'lucide-react';
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../hooks/useAuth';
 import { useForm } from 'react-hook-form';
+import { Link, useNavigate } from 'react-router-dom';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Label from '../../components/ui/Label';
-import { Wallet, UserPlus } from 'lucide-react';
+import PasswordInput from '../../components/ui/PasswordInput';
+import { useAuth } from '../../hooks/useAuth';
 
 interface RegisterFormData {
   name: string;
@@ -15,10 +17,12 @@ interface RegisterFormData {
 }
 
 export default function RegisterPage() {
-  const { register: registerUser } = useAuth();
+  const { signUp } = useAuth();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [registerError, setRegisterError] = useState<string | null>(null);
+  const [showConfirmationModal, setShowConfirmationModal] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState('');
   
   const { register, handleSubmit, watch, formState: { errors } } = useForm<RegisterFormData>();
   const password = watch('password');
@@ -28,13 +32,30 @@ export default function RegisterPage() {
     setRegisterError(null);
     
     try {
-      await registerUser(data.name, data.email, data.password);
-      navigate('/dashboard');
+      const { error } = await signUp(data.email, data.password, data.name);
+      
+      if (error) {
+        throw error;
+      }
+
+      setRegisteredEmail(data.email);
+      setShowConfirmationModal(true);
     } catch (error) {
-      setRegisterError('Erro ao criar conta. Tente novamente mais tarde.');
+      if (error instanceof AuthError) {
+        setRegisterError(error.message);
+      } else if (error instanceof Error) {
+        setRegisterError(error.message);
+      } else {
+        setRegisterError('Erro ao criar conta. Tente novamente mais tarde.');
+      }
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleCloseModal = () => {
+    setShowConfirmationModal(false);
+    navigate('/');
   };
   
   return (
@@ -94,9 +115,8 @@ export default function RegisterPage() {
             
             <div>
               <Label htmlFor="password" required>Senha</Label>
-              <Input
+              <PasswordInput
                 id="password"
-                type="password"
                 autoComplete="new-password"
                 {...register('password', { 
                   required: 'Senha é obrigatória',
@@ -111,9 +131,8 @@ export default function RegisterPage() {
             
             <div>
               <Label htmlFor="confirmPassword" required>Confirmar senha</Label>
-              <Input
+              <PasswordInput
                 id="confirmPassword"
-                type="password"
                 autoComplete="new-password"
                 {...register('confirmPassword', { 
                   required: 'Confirmação de senha é obrigatória',
@@ -145,6 +164,52 @@ export default function RegisterPage() {
           </div>
         </div>
       </div>
+
+      {/* Modal de Confirmação */}
+      {showConfirmationModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6 relative">
+            <button
+              onClick={handleCloseModal}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-500"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            <div className="text-center">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-primary-100 dark:bg-primary-900">
+                <Mail className="h-6 w-6 text-primary-600 dark:text-primary-400" />
+              </div>
+              
+              <h3 className="mt-4 text-lg font-medium text-gray-900 dark:text-white">
+                Confirme seu email
+              </h3>
+              
+              <div className="mt-3">
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Enviamos um link de confirmação para
+                </p>
+                <p className="mt-1 text-sm font-medium text-gray-900 dark:text-white">
+                  {registeredEmail}
+                </p>
+                <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+                  Por favor, verifique sua caixa de entrada e clique no link de confirmação para ativar sua conta.
+                </p>
+              </div>
+
+              <div className="mt-6">
+                <Button
+                  type="button"
+                  className="w-full"
+                  onClick={handleCloseModal}
+                >
+                  Entendi
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,109 +1,43 @@
-import { Link } from 'react-router-dom';
-import { 
-  BrainCircuit, 
-  Check, 
-  ArrowRight, 
-  MessageSquare, 
-  PieChart, 
-  Bell, 
-  ChevronRight,
-  Star,
-  Menu,
-  X
+import {
+    ArrowRight,
+    Bell,
+    BrainCircuit,
+    Check,
+    MessageSquare,
+    PieChart,
+    Star,
+    X
 } from 'lucide-react';
 import { useState } from 'react';
-import Button from '../../components/ui/Button';
+import { Link, useNavigate } from 'react-router-dom';
+import Navbar from '../../components/layout/Navbar';
+import { useAuth } from '../../hooks/useAuth';
+import { useSubscription } from '../../hooks/useSubscription';
 
 export default function LandingPage() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showTrialModal, setShowTrialModal] = useState(false);
+  const { user } = useAuth();
+  const { createTrialSubscription } = useSubscription();
+  const navigate = useNavigate();
+
+  const handleStartTrial = async () => {
+    if (user) {
+      try {
+        const { error } = await createTrialSubscription();
+        if (error) throw error;
+        navigate('/dashboard');
+      } catch (error) {
+        console.error('Erro ao criar assinatura trial:', error);
+        alert('Erro ao criar assinatura trial. Tente novamente.');
+      }
+    } else {
+      setShowTrialModal(true);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-800">
-      {/* Header */}
-      <header className="fixed w-full top-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <BrainCircuit size={32} className="text-primary-500" />
-              <span className="ml-2 text-xl font-bold text-gray-900 dark:text-white">Finanças Simplificadas</span>
-            </div>
-            
-            {/* Desktop Nav */}
-            <nav className="hidden md:flex items-center space-x-8">
-              <a href="#recursos" className="text-neutral-600 hover:text-primary-500 text-sm font-medium">
-                Recursos
-              </a>
-              <a href="#planos" className="text-neutral-600 hover:text-primary-500 text-sm font-medium">
-                Planos
-              </a>
-              <a href="#perguntas" className="text-neutral-600 hover:text-primary-500 text-sm font-medium">
-                Perguntas
-              </a>
-              <div className="ml-4 flex items-center space-x-3">
-                <Link to="/login" className="text-neutral-700 hover:text-primary-600 text-sm font-medium">
-                  Entrar
-                </Link>
-                <Link to="/register" className="btn-primary">
-                  Começar grátis
-                </Link>
-              </div>
-            </nav>
-            
-            {/* Mobile Nav Button */}
-            <button 
-              className="md:hidden text-neutral-500"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            >
-              {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-            </button>
-          </div>
-        </div>
-        
-        {/* Mobile Menu */}
-        {mobileMenuOpen && (
-          <div className="md:hidden px-4 py-3 bg-white border-t border-neutral-100">
-            <nav className="flex flex-col space-y-3">
-              <a 
-                href="#recursos" 
-                className="text-neutral-600 hover:text-primary-500 py-2 text-base font-medium"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Recursos
-              </a>
-              <a 
-                href="#planos" 
-                className="text-neutral-600 hover:text-primary-500 py-2 text-base font-medium"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Planos
-              </a>
-              <a 
-                href="#perguntas" 
-                className="text-neutral-600 hover:text-primary-500 py-2 text-base font-medium"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Perguntas
-              </a>
-              <div className="pt-3 flex flex-col space-y-3 border-t border-neutral-100">
-                <Link 
-                  to="/login" 
-                  className="text-neutral-700 hover:text-primary-600 py-2 text-base font-medium"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Entrar
-                </Link>
-                <Link 
-                  to="/register" 
-                  className="btn-primary w-full justify-center"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Começar grátis
-                </Link>
-              </div>
-            </nav>
-          </div>
-        )}
-      </header>
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
+      <Navbar variant="public" />
 
       {/* Hero Section */}
       <section className="bg-gradient-to-br from-primary-500 to-secondary-600 text-white py-16 sm:py-24">
@@ -293,7 +227,7 @@ export default function LandingPage() {
               <h3 className="text-xl font-bold text-neutral-900 mb-2">Gratuito</h3>
               <div className="mb-4">
                 <span className="text-3xl font-bold text-neutral-900">R$0</span>
-                <span className="text-neutral-600">/mês</span>
+                <span className="text-neutral-600">/7 dias</span>
               </div>
               <p className="text-neutral-600 mb-6">
                 Perfeito para quem está começando a organizar suas finanças.
@@ -302,7 +236,7 @@ export default function LandingPage() {
               <ul className="space-y-3 mb-6">
                 <li className="flex items-start">
                   <Check size={18} className="text-primary-500 mt-0.5 mr-2 flex-shrink-0" />
-                  <span className="text-neutral-700">Registro manual de transações</span>
+                  <span className="text-neutral-700">Integração com WhatsApp</span>
                 </li>
                 <li className="flex items-start">
                   <Check size={18} className="text-primary-500 mt-0.5 mr-2 flex-shrink-0" />
@@ -310,17 +244,20 @@ export default function LandingPage() {
                 </li>
                 <li className="flex items-start">
                   <Check size={18} className="text-primary-500 mt-0.5 mr-2 flex-shrink-0" />
-                  <span className="text-neutral-700">Relatórios mensais</span>
+                  <span className="text-neutral-700">Relatório semanal</span>
                 </li>
                 <li className="flex items-start">
                   <Check size={18} className="text-primary-500 mt-0.5 mr-2 flex-shrink-0" />
-                  <span className="text-neutral-700">Limite de 50 transações/mês</span>
+                  <span className="text-neutral-700">Limite de 50 transações</span>
                 </li>
               </ul>
               
-              <Link to="/register" className="btn-outline w-full justify-center">
-                Começar grátis
-              </Link>
+              <button 
+                onClick={handleStartTrial}
+                className="btn-outline w-full justify-center"
+              >
+                Experimente grátis
+              </button>
             </div>
             
             {/* Basic Plan */}
@@ -332,7 +269,7 @@ export default function LandingPage() {
               </div>
               <h3 className="text-xl font-bold text-neutral-900 mb-2">Básico</h3>
               <div className="mb-4">
-                <span className="text-3xl font-bold text-neutral-900">R$9,90</span>
+                <span className="text-3xl font-bold text-neutral-900">R$39,90</span>
                 <span className="text-neutral-600">/mês</span>
               </div>
               <p className="text-neutral-600 mb-6">
@@ -350,19 +287,11 @@ export default function LandingPage() {
                 </li>
                 <li className="flex items-start">
                   <Check size={18} className="text-primary-500 mt-0.5 mr-2 flex-shrink-0" />
-                  <span className="text-neutral-700">Alertas de vencimentos</span>
-                </li>
-                <li className="flex items-start">
-                  <Check size={18} className="text-primary-500 mt-0.5 mr-2 flex-shrink-0" />
-                  <span className="text-neutral-700">Relatórios avançados</span>
-                </li>
-                <li className="flex items-start">
-                  <Check size={18} className="text-primary-500 mt-0.5 mr-2 flex-shrink-0" />
                   <span className="text-neutral-700">Metas financeiras</span>
                 </li>
                 <li className="flex items-start">
                   <Check size={18} className="text-primary-500 mt-0.5 mr-2 flex-shrink-0" />
-                  <span className="text-neutral-700">Limite de 200 transações/mês</span>
+                  <span className="text-neutral-700">Limite de 100 transações/mês</span>
                 </li>
               </ul>
               
@@ -375,7 +304,7 @@ export default function LandingPage() {
             <div className="card p-6 border border-neutral-200">
               <h3 className="text-xl font-bold text-neutral-900 mb-2">Premium</h3>
               <div className="mb-4">
-                <span className="text-3xl font-bold text-neutral-900">R$19,90</span>
+                <span className="text-3xl font-bold text-neutral-900">R$69,90</span>
                 <span className="text-neutral-600">/mês</span>
               </div>
               <p className="text-neutral-600 mb-6">
@@ -397,11 +326,11 @@ export default function LandingPage() {
                 </li>
                 <li className="flex items-start">
                   <Check size={18} className="text-primary-500 mt-0.5 mr-2 flex-shrink-0" />
-                  <span className="text-neutral-700">Planejamento tributário</span>
+                  <span className="text-neutral-700">Análise de investimentos</span>
                 </li>
                 <li className="flex items-start">
                   <Check size={18} className="text-primary-500 mt-0.5 mr-2 flex-shrink-0" />
-                  <span className="text-neutral-700">Detecção de gastos incomuns</span>
+                  <span className="text-neutral-700">Insiders de economia</span>
                 </li>
                 <li className="flex items-start">
                   <Check size={18} className="text-primary-500 mt-0.5 mr-2 flex-shrink-0" />
@@ -421,46 +350,46 @@ export default function LandingPage() {
       <section id="perguntas" className="py-16 sm:py-24 bg-neutral-50">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-3xl mx-auto text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl font-bold text-neutral-900 mb-4">
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
               Perguntas frequentes
             </h2>
-            <p className="text-lg text-neutral-600">
+            <p className="text-lg text-gray-600">
               Tire suas dúvidas sobre o Finanças Simplificadas.
             </p>
           </div>
           
           <div className="max-w-3xl mx-auto space-y-6">
-            <div className="card p-6">
-              <h3 className="text-lg font-bold text-neutral-900 mb-2">Como funciona a integração com o WhatsApp?</h3>
-              <p className="text-neutral-600">
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <h3 className="text-lg font-bold text-gray-900 mb-2">Como funciona a integração com o WhatsApp?</h3>
+              <p className="text-gray-600">
                 Após se cadastrar, você conecta seu número do WhatsApp à nossa plataforma. Então, basta enviar mensagens como "Gastei R$50 no mercado" e nosso sistema automaticamente registra e categoriza essa transação.
               </p>
             </div>
             
-            <div className="card p-6">
-              <h3 className="text-lg font-bold text-neutral-900 mb-2">Meus dados financeiros estão seguros?</h3>
-              <p className="text-neutral-600">
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <h3 className="text-lg font-bold text-gray-900 mb-2">Meus dados financeiros estão seguros?</h3>
+              <p className="text-gray-600">
                 Sim! Utilizamos criptografia de ponta a ponta e seguimos os mais rigorosos padrões de segurança para proteger seus dados. Nunca compartilhamos suas informações financeiras com terceiros.
               </p>
             </div>
             
-            <div className="card p-6">
-              <h3 className="text-lg font-bold text-neutral-900 mb-2">Posso mudar de plano depois?</h3>
-              <p className="text-neutral-600">
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <h3 className="text-lg font-bold text-gray-900 mb-2">Posso mudar de plano depois?</h3>
+              <p className="text-gray-600">
                 Absolutamente! Você pode fazer upgrade ou downgrade do seu plano a qualquer momento. As mudanças entram em vigor no próximo ciclo de cobrança.
               </p>
             </div>
             
-            <div className="card p-6">
-              <h3 className="text-lg font-bold text-neutral-900 mb-2">Como funciona o período de teste?</h3>
-              <p className="text-neutral-600">
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <h3 className="text-lg font-bold text-gray-900 mb-2">Como funciona o período de teste?</h3>
+              <p className="text-gray-600">
                 Oferecemos 14 dias de teste gratuito nos planos pagos. Você pode experimentar todos os recursos premium sem compromisso e decidir se deseja continuar após esse período.
               </p>
             </div>
             
-            <div className="card p-6">
-              <h3 className="text-lg font-bold text-neutral-900 mb-2">Preciso instalar algum aplicativo?</h3>
-              <p className="text-neutral-600">
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <h3 className="text-lg font-bold text-gray-900 mb-2">Preciso instalar algum aplicativo?</h3>
+              <p className="text-gray-600">
                 Não é necessário instalar nada. O Finanças Simplificadas é um web app que funciona direto do navegador e se integra ao WhatsApp que você já usa.
               </p>
             </div>
@@ -553,6 +482,72 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
+
+      {/* Modal de Confirmação do Trial */}
+      {showTrialModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-md w-full p-6 relative animate-fade-in">
+            <button
+              onClick={() => setShowTrialModal(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-500"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            <div className="text-center">
+              <h3 className="text-xl font-bold text-gray-900 mb-4">
+                Comece seu período gratuito
+              </h3>
+              
+              <div className="mb-6">
+                <div className="text-4xl font-bold text-primary-600 mb-2">
+                  R$ 0,00
+                </div>
+                <p className="text-sm text-gray-500">
+                  por 7 dias
+                </p>
+              </div>
+
+              <div className="space-y-4 mb-6 text-left">
+                <div className="flex items-center">
+                  <Check className="h-5 w-5 text-success-500 mr-2" />
+                  <span className="text-gray-600">
+                    Acesso a todas as funcionalidades básicas
+                  </span>
+                </div>
+                <div className="flex items-center">
+                  <Check className="h-5 w-5 text-success-500 mr-2" />
+                  <span className="text-gray-600">
+                    Até 50 transações por mês
+                  </span>
+                </div>
+                <div className="flex items-center">
+                  <Check className="h-5 w-5 text-success-500 mr-2" />
+                  <span className="text-gray-600">
+                    Cancele quando quiser
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <Link 
+                  to="/register" 
+                  className="btn-primary w-full justify-center inline-flex items-center"
+                >
+                  Começar agora
+                  <ArrowRight className="h-4 w-4 ml-2" />
+                </Link>
+                <button
+                  onClick={() => setShowTrialModal(false)}
+                  className="text-sm text-gray-500 hover:text-gray-700"
+                >
+                  Talvez depois
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 } 

@@ -1,29 +1,31 @@
-import { createContext, useState, useEffect, ReactNode } from 'react';
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  plan: 'free' | 'basic' | 'premium';
-  avatar?: string;
-}
+import { AuthError, AuthResponse, Session, SupabaseClient, User } from '@supabase/supabase-js';
+import { createContext, ReactNode, useEffect, useState } from 'react';
+import { supabase } from '../lib/supabase';
+import { Database } from '../types/supabase';
 
 interface AuthContextType {
-  isAuthenticated: boolean;
-  isLoading: boolean;
   user: User | null;
-  login: (email: string, password: string, rememberMe: boolean) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
-  logout: () => void;
+  loading: boolean;
+  supabase: SupabaseClient<Database>;
+  signIn: (email: string, password: string, rememberMe?: boolean) => Promise<{
+    data: AuthResponse['data'] | null;
+    error: Error | null;
+  }>;
+  signUp: (email: string, password: string, name: string) => Promise<{
+    error: Error | null;
+  }>;
+  signOut: () => Promise<void>;
+  checkUserSubscription: () => Promise<boolean>;
 }
 
 export const AuthContext = createContext<AuthContextType>({
-  isAuthenticated: false,
-  isLoading: true,
   user: null,
-  login: async () => {},
-  register: async () => {},
-  logout: () => {},
+  loading: true,
+  supabase,
+  signIn: async () => ({ data: null, error: null }),
+  signUp: async () => ({ error: null }),
+  signOut: async () => {},
+  checkUserSubscription: async () => false,
 });
 
 interface AuthProviderProps {
@@ -32,98 +34,136 @@ interface AuthProviderProps {
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
+
+  // Função para atualizar o usuário
+  const updateUser = (session: Session | null) => {
+    console.log('Atualizando usuário:', session?.user || null);
+    setUser(session?.user || null);
+  };
 
   useEffect(() => {
-    // Verificar autenticação em diferentes storages
-    const sessionUser = sessionStorage.getItem('user');
-    const localUser = localStorage.getItem('user');
-    
-    if (sessionUser) {
-      setUser(JSON.parse(sessionUser));
-    } else if (localUser) {
-      setUser(JSON.parse(localUser));
-    }
-    
-    setIsLoading(false);
+    // Verifica se já existe uma sessão
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('Sessão inicial:', session);
+      updateUser(session);
+      setLoading(false);
+    });
+
+    // Escuta mudanças na autenticação
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      console.log('Mudança de estado de autenticação:', session);
+      updateUser(session);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const login = async (email: string, password: string, rememberMe: boolean) => {
-    setIsLoading(true);
+  const checkUserSubscription = async () => {
+    if (!user) return false;
     
     try {
-      // Simulando resposta de API
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Simulando diferentes tipos de plano baseado no email
-      const plan = email.includes('premium') 
-        ? 'premium' 
-        : email.includes('basic') 
-          ? 'basic' 
-          : 'free';
+      const { data: subscription, error } = await supabase
+        .from('subscriptions')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
 
-      const mockUser: User = {
-        id: '1',
-        name: 'Usuário Teste',
-        email,
-        plan,
-        avatar: 'https://i.pravatar.cc/150?img=11',
-      };
+      if (error) throw error;
       
-      setUser(mockUser);
-      
-      // Armazenar dados com base na opção "Lembrar de mim"
-      if (rememberMe) {
-        localStorage.setItem('user', JSON.stringify(mockUser));
-        sessionStorage.removeItem('user');
-      } else {
-        sessionStorage.setItem('user', JSON.stringify(mockUser));
-        localStorage.removeItem('user');
+      return subscription && subscription.status === 'active';
+    } catch (error) {
+      console.error('Erro ao verificar assinatura:', error);
+      return false;
+    }
+  };
+
+  const signIn = async (email: string, password: string, rememberMe: boolean = true) => {
+    try {
+      if (!rememberMe) {
+        await supabase.auth.signOut();
       }
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
-  const register = async (name: string, email: string, password: string) => {
-    setIsLoading(true);
-    
-    try {
-      // Simulando resposta de API
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const mockUser: User = {
-        id: '1',
-        name,
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
-        plan: 'free',
-      };
+        password
+      });
+
+      if (error) throw error;
+
+      console.log('Login bem-sucedido:', data.session);
+      updateUser(data.session);
+
+      // Verifica se o usuário tem um plano ativo
+      const hasActivePlan = await checkUserSubscription();
       
-      setUser(mockUser);
-      // Por padrão, novos registros são salvos na sessão
-      sessionStorage.setItem('user', JSON.stringify(mockUser));
-    } finally {
-      setIsLoading(false);
+      // Redireciona com base no plano
+      if (hasActivePlan) {
+        window.location.href = '/dashboard';
+      } else {
+        window.location.href = '/planos';
+      }
+
+      return { data, error: null };
+    } catch (error) {
+      console.error('Erro no login:', error);
+      return { data: null, error: error as Error };
     }
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('user');
-    sessionStorage.removeItem('user');
+  const signUp = async (email: string, password: string, name: string) => {
+    try {
+      console.log('Iniciando registro com:', { email, name });
+      
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name,
+          },
+          emailRedirectTo: `${window.location.origin}/login?confirmed=true`
+        },
+      });
+
+      if (error) {
+        console.error('Erro no registro:', error);
+        throw error;
+      }
+
+      console.log('Registro bem-sucedido:', data);
+      return { error: null };
+    } catch (error) {
+      console.error('Erro capturado no registro:', error);
+      if (error instanceof AuthError) {
+        return { error };
+      }
+      return { error: new Error('Erro ao criar conta. Tente novamente mais tarde.') };
+    }
+  };
+
+  const signOut = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      updateUser(null);
+    } catch (error) {
+      console.error('Erro ao fazer logout:', error);
+    }
+  };
+
+  const contextValue: AuthContextType = {
+    user,
+    loading,
+    supabase,
+    signIn,
+    signUp,
+    signOut,
+    checkUserSubscription,
   };
 
   return (
-    <AuthContext.Provider
-      value={{
-        isAuthenticated: !!user,
-        isLoading,
-        user,
-        login,
-        register,
-        logout,
-      }}
-    >
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,7 +1,7 @@
-import { 
-  User, 
-  HelpCircle,
-  ChevronRight
+import {
+    ChevronRight,
+    HelpCircle,
+    User
 } from 'lucide-react';
 
 const SettingsPage = () => {

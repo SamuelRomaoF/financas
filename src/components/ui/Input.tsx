@@ -1,28 +1,34 @@
-import { InputHTMLAttributes, forwardRef } from 'react';
-import { cn } from '../../utils/cn';
+import { ComponentProps, forwardRef } from 'react';
 
-export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
+export interface InputProps extends ComponentProps<'input'> {
   error?: string;
 }
 
-const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ className, error, ...props }, ref) => {
-    return (
-      <div className="w-full">
-        <input
-          className={cn(
-            'w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:focus:ring-primary-400 dark:focus:border-primary-400',
-            error && 'border-error-500 focus:ring-error-500 focus:border-error-500',
-            className
-          )}
-          ref={ref}
-          {...props}
-        />
-        {error && <p className="mt-1 text-sm text-error-500">{error}</p>}
-      </div>
-    );
-  }
-);
+const Input = forwardRef<HTMLInputElement, InputProps>(({ className = '', error, ...props }, ref) => {
+  return (
+    <div className="w-full">
+      <input
+        ref={ref}
+        className={`
+          w-full px-3 py-2 rounded-lg border
+          ${error 
+            ? 'border-error-300 focus:ring-error-500 dark:border-error-700 dark:focus:ring-error-400' 
+            : 'border-gray-200 focus:ring-primary-500 dark:border-gray-700 dark:focus:ring-primary-400'
+          }
+          bg-white text-gray-900 placeholder-gray-500
+          focus:outline-none focus:ring-2 focus:border-transparent
+          dark:bg-gray-800 dark:text-white dark:placeholder-gray-400
+          disabled:opacity-50 disabled:cursor-not-allowed
+          ${className}
+        `}
+        {...props}
+      />
+      {error && (
+        <p className="mt-1 text-sm text-error-600 dark:text-error-400">{error}</p>
+      )}
+    </div>
+  );
+});
 
 Input.displayName = 'Input';
 

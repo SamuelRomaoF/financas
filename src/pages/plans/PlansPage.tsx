@@ -1,5 +1,5 @@
+import { Check, CreditCard, Crown, Star } from 'lucide-react';
 import { useState } from 'react';
-import { Check, Crown, Star, CreditCard } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import { useAuth } from '../../hooks/useAuth';
 

@@ -1,58 +1,75 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
-import { useAuth } from './hooks/useAuth';
-import Layout from './components/layout/Layout';
-import LandingPage from './pages/landing/LandingPage';
+import { Toaster } from 'react-hot-toast';
+import { Route, Routes } from 'react-router-dom';
+import AppLayout from './components/layout/AppLayout';
+import { ProtectedRoute } from './components/ProtectedRoute';
+import AccountPage from './pages/account/AccountPage';
+import AlertsPage from './pages/alerts/AlertsPage';
 import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
-import DashboardPage from './pages/dashboard/DashboardPage';
-import TransactionsPage from './pages/transactions/TransactionsPage';
+import BanksPage from './pages/banks/BanksPage';
 import CategoriesPage from './pages/categories/CategoriesPage';
+import DashboardPage from './pages/dashboard/DashboardPage';
 import GoalsPage from './pages/goals/GoalsPage';
-import AlertsPage from './pages/alerts/AlertsPage';
-import ReportsPage from './pages/reports/ReportsPage';
-import WhatsAppConfigPage from './pages/whatsapp/WhatsAppConfigPage';
+import InvestmentsPage from './pages/Investimentos';
+import LandingPage from './pages/landing/LandingPage';
 import PlansPage from './pages/plans/PlansPage';
+import ReportsPage from './pages/reports/ReportsPage';
 import SettingsPage from './pages/settings/SettingsPage';
-import NotFoundPage from './pages/NotFoundPage';
+import TransactionsPage from './pages/transactions/TransactionsPage';
+import WalletPage from './pages/wallet/WalletPage';
+import WhatsAppConfigPage from './pages/whatsapp/WhatsAppConfigPage';
 
-function App() {
-  const { isAuthenticated, isLoading } = useAuth();
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
-      </div>
-    );
-  }
-
+export default function App() {
   return (
-    <Routes>
-      {/* Página inicial (Landing Page) */}
-      <Route path="/" element={<LandingPage />} />
+    <>
+      <Toaster 
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: '#363636',
+            color: '#fff',
+          },
+          success: {
+            duration: 3000,
+            style: {
+              background: '#059669',
+            },
+          },
+          error: {
+            duration: 5000,
+            style: {
+              background: '#DC2626',
+            },
+          },
+        }}
+      />
       
-      {/* Rotas públicas */}
-      <Route path="/login" element={!isAuthenticated ? <LoginPage /> : <Navigate to="/app/dashboard" />} />
-      <Route path="/registro" element={!isAuthenticated ? <RegisterPage /> : <Navigate to="/app/dashboard" />} />
-      
-      {/* Rotas protegidas */}
-      <Route path="/app" element={isAuthenticated ? <Layout /> : <Navigate to="/login" />}>
-        <Route index element={<Navigate to="/app/dashboard" replace />} />
-        <Route path="dashboard" element={<DashboardPage />} />
-        <Route path="transacoes" element={<TransactionsPage />} />
-        <Route path="categorias" element={<CategoriesPage />} />
-        <Route path="metas" element={<GoalsPage />} />
-        <Route path="alertas" element={<AlertsPage />} />
-        <Route path="relatorios" element={<ReportsPage />} />
-        <Route path="whatsapp" element={<WhatsAppConfigPage />} />
-        <Route path="planos" element={<PlansPage />} />
-        <Route path="configuracoes" element={<SettingsPage />} />
-      </Route>
-      
-      {/* Rota 404 */}
-      <Route path="*" element={<NotFoundPage />} />
-    </Routes>
+      <Routes>
+        {/* Página inicial (Landing Page) */}
+        <Route path="/" element={<LandingPage />} />
+        
+        {/* Rotas públicas */}
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        
+        {/* Rotas protegidas */}
+        <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
+          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/bancos" element={<BanksPage />} />
+          <Route path="/transacoes" element={<TransactionsPage />} />
+          <Route path="/investimentos" element={<InvestmentsPage />} />
+          <Route path="/metas" element={<GoalsPage />} />
+          <Route path="/carteira" element={<WalletPage />} />
+          <Route path="/categorias" element={<CategoriesPage />} />
+          <Route path="/alertas" element={<AlertsPage />} />
+          <Route path="/relatorios" element={<ReportsPage />} />
+          <Route path="/whatsapp" element={<WhatsAppConfigPage />} />
+          <Route path="/planos" element={<PlansPage />} />
+          <Route path="/configuracoes" element={<SettingsPage />} />
+          <Route path="/conta" element={<AccountPage />} />
+        </Route>
+      </Routes>
+    </>
   );
 }
-
-export default App;

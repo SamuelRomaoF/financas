@@ -1,9 +1,11 @@
+import { BarChart3, Bell, PlusCircle, Target, TrendingDown, TrendingUp } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
-import { BarChart3, TrendingUp, TrendingDown, Target, Bell, PlusCircle } from 'lucide-react';
-import { formatCurrency } from '../../utils/formatCurrency';
-import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
+import { Bar, BarChart, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import CreditCardManager from '../../components/credit-cards/CreditCardManager';
+import LoanManager from '../../components/loans/LoanManager';
 import Button from '../../components/ui/Button';
+import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
+import { formatCurrency } from '../../utils/formatCurrency';
 
 // Dados mockados para o dashboard
 const mockTransactionData = [
@@ -245,6 +247,12 @@ export default function DashboardPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Cartões de Crédito */}
+      <CreditCardManager />
+
+      {/* Empréstimos */}
+      <LoanManager />
     </div>
   );
 }
