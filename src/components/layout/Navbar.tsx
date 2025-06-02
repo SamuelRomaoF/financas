@@ -179,6 +179,16 @@ export default function Navbar({ variant = 'public' }: NavbarProps) {
           {userMenuOpen && (
             <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 divide-y divide-gray-100 z-50">
               <div>
+                <Link
+                  to="/dashboard"
+                  onClick={() => setUserMenuOpen(false)}
+                  className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <BrainCircuit className="h-4 w-4" />
+                    Dashboard
+                  </div>
+                </Link>
                 <a 
                   onClick={() => {
                     setShowAccountModal(true);
