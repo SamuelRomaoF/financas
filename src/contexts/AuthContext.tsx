@@ -38,21 +38,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Função para atualizar o usuário
   const updateUser = (session: Session | null) => {
-    console.log('Atualizando usuário:', session?.user || null);
     setUser(session?.user || null);
   };
 
   useEffect(() => {
     // Verifica se já existe uma sessão
     supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('Sessão inicial:', session);
       updateUser(session);
       setLoading(false);
     });
 
     // Escuta mudanças na autenticação
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      console.log('Mudança de estado de autenticação:', session);
       updateUser(session);
     });
 
@@ -73,7 +70,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       
       return subscription && subscription.status === 'active';
     } catch (error) {
-      console.error('Erro ao verificar assinatura:', error);
       return false;
     }
   };
@@ -91,30 +87,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       if (error) throw error;
 
-      console.log('Login bem-sucedido:', data.session);
       updateUser(data.session);
-
-      // Verifica se o usuário tem um plano ativo
-      const hasActivePlan = await checkUserSubscription();
-      
-      // Redireciona com base no plano
-      if (hasActivePlan) {
-        window.location.href = '/dashboard';
-      } else {
-        window.location.href = '/planos';
-      }
 
       return { data, error: null };
     } catch (error) {
-      console.error('Erro no login:', error);
       return { data: null, error: error as Error };
     }
   };
 
   const signUp = async (email: string, password: string, name: string) => {
     try {
-      console.log('Iniciando registro com:', { email, name });
-      
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -127,14 +109,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
       });
 
       if (error) {
-        console.error('Erro no registro:', error);
         throw error;
       }
 
-      console.log('Registro bem-sucedido:', data);
       return { error: null };
     } catch (error) {
-      console.error('Erro capturado no registro:', error);
       if (error instanceof AuthError) {
         return { error };
       }
@@ -148,7 +127,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (error) throw error;
       updateUser(null);
     } catch (error) {
-      console.error('Erro ao fazer logout:', error);
     }
   };
 

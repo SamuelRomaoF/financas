@@ -129,9 +129,9 @@ export default function PlansPage() {
                 </p>
               )}
               {subscription?.plan !== 'free' && subscription?.current_period_ends_at && (
-                 <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+              <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
                    Expira em: {formatDate(subscription.current_period_ends_at)}
-                 </p>
+              </p>
               )}
             </div>
           </div>
@@ -150,33 +150,33 @@ export default function PlansPage() {
           {/* Seletor de período - Mostrar apenas se o plano for 'free' ou não houver plano */}
           {!(subscription?.status === 'active' && subscription?.plan === 'basic') && (
             <div className="flex justify-center py-4">
-              <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 p-1">
-                <button
-                  onClick={() => setSelectedPeriod('monthly')}
-                  className={`px-4 py-2 text-sm font-medium rounded-md ${
-                    selectedPeriod === 'monthly'
-                      ? 'bg-primary-500 text-white'
-                      : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-                  }`}
-                >
-                  Mensal
-                </button>
-                <button
-                  onClick={() => setSelectedPeriod('yearly')}
-                  className={`px-4 py-2 text-sm font-medium rounded-md ${
-                    selectedPeriod === 'yearly'
-                      ? 'bg-primary-500 text-white'
-                      : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-                  }`}
-                >
-                  Anual
-                  <span className="ml-1 text-xs text-success-600 dark:text-success-400">-20%</span>
-                </button>
-              </div>
-            </div>
+        <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 p-1">
+          <button
+            onClick={() => setSelectedPeriod('monthly')}
+            className={`px-4 py-2 text-sm font-medium rounded-md ${
+              selectedPeriod === 'monthly'
+                ? 'bg-primary-500 text-white'
+                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+            }`}
+          >
+            Mensal
+          </button>
+          <button
+            onClick={() => setSelectedPeriod('yearly')}
+            className={`px-4 py-2 text-sm font-medium rounded-md ${
+              selectedPeriod === 'yearly'
+                ? 'bg-primary-500 text-white'
+                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+            }`}
+          >
+            Anual
+            <span className="ml-1 text-xs text-success-600 dark:text-success-400">-20%</span>
+          </button>
+        </div>
+      </div>
           )}
 
-          {/* Lista de planos */}
+      {/* Lista de planos */}
           {filteredPlansToDisplay.length === 1 ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 place-items-center">
               {/* Div vazia para a primeira coluna em telas médias e maiores */} 
@@ -236,50 +236,50 @@ export default function PlansPage() {
                     (subscription?.plan === 'basic' && plan.id === 'premium') ? 'Fazer Upgrade' :
                     'Assinar Agora';
 
-                  return (
-                    <div
-                      key={plan.id}
-                      className={`relative bg-white dark:bg-gray-800 rounded-lg shadow-sm border ${
-                        plan.recommended
-                          ? 'border-primary-500 dark:border-primary-500'
-                          : 'border-gray-200 dark:border-gray-700'
-                      } p-6`}
-                    >
-                      {plan.recommended && (
-                        <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                          <span className="bg-primary-500 text-white text-xs font-medium px-3 py-1 rounded-full">
-                            Recomendado
-                          </span>
-                        </div>
-                      )}
+          return (
+            <div
+              key={plan.id}
+              className={`relative bg-white dark:bg-gray-800 rounded-lg shadow-sm border ${
+                plan.recommended
+                  ? 'border-primary-500 dark:border-primary-500'
+                  : 'border-gray-200 dark:border-gray-700'
+              } p-6`}
+            >
+              {plan.recommended && (
+                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                  <span className="bg-primary-500 text-white text-xs font-medium px-3 py-1 rounded-full">
+                    Recomendado
+                  </span>
+                </div>
+              )}
                       {/* Restante do conteúdo do card para múltiplos cards */}
-                      <div className="text-center">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{plan.name}</h3>
-                        <div className="mt-4">
-                          <span className="text-4xl font-bold text-gray-900 dark:text-white">
+              <div className="text-center">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{plan.name}</h3>
+                <div className="mt-4">
+                  <span className="text-4xl font-bold text-gray-900 dark:text-white">
                             {plan.id === 'free' ? 'R$ 0,00' : formatCurrency(price)}
-                          </span>
-                          <span className="text-gray-500 dark:text-gray-400">
+                  </span>
+                  <span className="text-gray-500 dark:text-gray-400">
                             /{selectedPeriod === 'yearly' && plan.id !== 'free' ? 'ano' : 'mês'}
-                          </span>
-                        </div>
-                        <ul className="mt-6 space-y-4 text-left">
-                          {plan.features.map((feature, index) => (
-                            <li key={index} className="flex items-start">
-                              <Check className="h-5 w-5 text-success-500 flex-shrink-0 mr-2" />
-                              <span className="text-sm text-gray-600 dark:text-gray-300">{feature}</span>
-                            </li>
-                          ))}
-                        </ul>
+                  </span>
+                </div>
+                <ul className="mt-6 space-y-4 text-left">
+                  {plan.features.map((feature, index) => (
+                    <li key={index} className="flex items-start">
+                      <Check className="h-5 w-5 text-success-500 flex-shrink-0 mr-2" />
+                      <span className="text-sm text-gray-600 dark:text-gray-300">{feature}</span>
+                    </li>
+                  ))}
+                </ul>
                         <Button variant={'primary'} className="mt-8 w-full">
-                          <CreditCard className="h-4 w-4 mr-2" />
+                  <CreditCard className="h-4 w-4 mr-2" />
                           {buttonText}
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })}
+                </Button>
+              </div>
             </div>
+          );
+        })}
+      </div>
           )}
         </>
       )}

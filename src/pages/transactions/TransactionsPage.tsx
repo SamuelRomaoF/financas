@@ -351,14 +351,14 @@ export default function TransactionsPage() {
       </Card>
 
       {isNewTransactionModalOpen && (
-        <NewTransactionModal
-          isOpen={isNewTransactionModalOpen}
-          onClose={() => setIsNewTransactionModalOpen(false)}
-          onSubmit={handleNewTransaction}
-          bankAccounts={bankAccounts}
-          creditCards={creditCards}
+      <NewTransactionModal
+        isOpen={isNewTransactionModalOpen}
+        onClose={() => setIsNewTransactionModalOpen(false)}
+        onSubmit={handleNewTransaction}
+        bankAccounts={bankAccounts}
+        creditCards={creditCards}
           userPlan={subscription?.plan || null}
-        />
+      />
       )}
     </div>
   );

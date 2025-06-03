@@ -18,7 +18,7 @@ interface LoginFormData {
 }
 
 export default function LoginPage() {
-  const { user, signIn } = useAuth();
+  const { /* user, */ signIn } = useAuth();
   const { checkAccess, createTrialSubscription } = useSubscription();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
@@ -36,12 +36,6 @@ export default function LoginPage() {
   const email = watch('email');
   
   useEffect(() => {
-    if (user) {
-      navigate('/dashboard', { replace: true });
-    }
-  }, [user, navigate]);
-
-  useEffect(() => {
     if (rememberMe && email) {
       localStorage.setItem('rememberedEmail', email);
     } else if (!rememberMe) {
@@ -55,12 +49,9 @@ export default function LoginPage() {
     setIsEmailNotConfirmed(false);
     
     try {
-      console.log('Tentando fazer login com:', data.email);
       const { data: signInData, error } = await signIn(data.email, data.password, data.rememberMe);
       
-      if (error) {
-        console.error('Erro durante o login:', error);
-        // Verifica se o erro é de email não confirmado
+      if (error || !signInData) {
         if (error instanceof AuthError && error.message.includes('Email not confirmed')) {
           setIsEmailNotConfirmed(true);
           throw new Error('Por favor, confirme seu email antes de fazer login. Verifique sua caixa de entrada.');
@@ -68,41 +59,33 @@ export default function LoginPage() {
         throw error;
       }
 
-      console.log('Login bem-sucedido:', signInData);
-
-      // Aguarda 2 segundos para garantir que o estado do usuário foi atualizado
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // Verifica o acesso
-      console.log('Verificando acesso...');
       const hasAccess = await checkAccess();
-      console.log('Verificação de acesso:', hasAccess);
 
       if (!hasAccess) {
-        console.log('Criando assinatura trial...');
-        // Tenta criar a assinatura trial até 3 vezes
         let subscriptionError = null;
         for (let i = 0; i < 3; i++) {
-          const { error: trialError } = await createTrialSubscription();
+          const userToPass = signInData.user;
+          
+          if (!userToPass) {
+            subscriptionError = new Error('Dados críticos do usuário ausentes após login.');
+            break;
+          }
+          const { error: trialError } = await createTrialSubscription(userToPass);
           if (!trialError) {
             subscriptionError = null;
             break;
           }
           subscriptionError = trialError;
-          // Aguarda 1 segundo antes de tentar novamente
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
         
         if (subscriptionError) {
-          console.error('Erro ao criar assinatura trial:', subscriptionError);
           throw subscriptionError;
         }
       }
 
-      // Redireciona para o dashboard
-      navigate('/dashboard');
+      navigate('/dashboard', { replace: true });
     } catch (error) {
-      console.error('Erro capturado:', error);
       if (error instanceof Error) {
         setLoginError(error.message);
       } else {

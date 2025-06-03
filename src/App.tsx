@@ -22,6 +22,7 @@ import RestrictedFeatureRoute from './components/routes/RestrictedFeatureRoute';
 import { SubscriptionPlan } from './hooks/useSubscription';
 
 export default function App() {
+  console.log('App.tsx: Componente App RENDERIZANDO');
   return (
     <>
       <Toaster 
@@ -67,12 +68,16 @@ export default function App() {
           <Route path="/categorias" element={<CategoriesPage />} />
           <Route path="/whatsapp" element={<WhatsAppConfigPage />} />
 
-          {/* Rotas restritas APENAS para basic e premium */}
-          <Route element={<RestrictedFeatureRoute allowedPlans={['basic', 'premium'] as SubscriptionPlan[]} />}>
+          {/* Rotas APENAS PREMIUM */}
+          <Route element={<RestrictedFeatureRoute allowedPlans={['premium'] as SubscriptionPlan[]} />}>
             <Route path="/bancos" element={<BanksPage />} />
-            <Route path="/investimentos" element={<InvestmentsPage />} />
-            <Route path="/metas" element={<GoalsPage />} />
             <Route path="/carteira" element={<WalletPage />} />
+            <Route path="/investimentos" element={<InvestmentsPage />} />
+          </Route>
+
+          {/* Rotas restritas para BASIC e PREMIUM */}
+          <Route element={<RestrictedFeatureRoute allowedPlans={['basic', 'premium'] as SubscriptionPlan[]} />}>
+            <Route path="/metas" element={<GoalsPage />} />
             <Route path="/alertas" element={<AlertsPage />} />
           </Route>
         </Route>

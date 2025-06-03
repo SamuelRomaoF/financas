@@ -1,6 +1,8 @@
+// console.log('useSubscription.ts: ARQUIVO SENDO CARREGADO NO NAVEGADOR - INÍCIO'); // LOG DE TESTE
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Database } from '../types/supabase';
+import { User } from '@supabase/supabase-js'; // Importar User se já não estiver
 import { useAuth } from './useAuth';
 
 export type SubscriptionPlan = Database["public"]["Enums"]["subscription_plan"];
@@ -9,13 +11,14 @@ export type SubscriptionStatus = 'active' | 'canceled' | 'expired';
 type Subscription = Database['public']['Tables']['subscriptions']['Row'];
 
 export function useSubscription() {
+  // console.log('useSubscription.ts: HOOK useSubscription SENDO CHAMADO'); // LOG DE TESTE
   const { user } = useAuth();
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
-  const userId = user?.id;
+  const hookUserId = user?.id;
 
   const fetchSubscription = useCallback(async () => {
-    if (!userId) {
+    if (!hookUserId) {
       setSubscription(null);
       setLoading(false);
       return;
@@ -26,7 +29,7 @@ export function useSubscription() {
       const { data, error } = await supabase
         .from('subscriptions')
         .select('*')
-        .eq('user_id', userId)
+        .eq('user_id', hookUserId)
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
@@ -34,33 +37,33 @@ export function useSubscription() {
       if (error) throw error;
       setSubscription(data);
     } catch (error) {
-      console.error('Erro ao buscar assinatura:', error);
+      // console.error('Erro ao buscar assinatura:', error);
       setSubscription(null);
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [hookUserId]);
 
   useEffect(() => {
     fetchSubscription();
   }, [fetchSubscription]);
 
-  const createTrialSubscription = async () => {
+  const createTrialSubscription = async (passedInUser?: User | null) => {
+    const userIdToUse = passedInUser?.id;
+    // console.log(`useSubscription - createTrialSubscription: ID do usuário recebido como argumento: ${userIdToUse}`);
+
+    if (!userIdToUse) {
+      // console.error('useSubscription - createTrialSubscription: Nenhum ID de usuário válido foi passado como argumento.');
+      throw new Error('ID do usuário não fornecido para criar assinatura trial.');
+    }
+
     try {
-      if (!user?.id) {
-        for (let i = 0; i < 10; i++) {
-          await new Promise(resolve => setTimeout(resolve, 500));
-          if (user?.id) break;
-        }
-        if (!user?.id) {
-          throw new Error('Usuário não autenticado. Por favor, tente fazer login novamente.');
-        }
-      }
+      // console.log(`useSubscription - createTrialSubscription: Prosseguindo com userId: ${userIdToUse} para operações no Supabase.`);
 
       const { data: existingSubscription, error: fetchError } = await supabase
         .from('subscriptions')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', userIdToUse)
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
@@ -80,7 +83,7 @@ export function useSubscription() {
       const { data: newSubscription, error: createError } = await supabase
         .from('subscriptions')
         .insert({
-          user_id: user.id,
+          user_id: userIdToUse,
           plan: 'free',
           status: 'active',
           trial_ends_at: trialEndsAt.toISOString(),
@@ -93,13 +96,13 @@ export function useSubscription() {
       setSubscription(newSubscription);
       return { subscription: newSubscription, error: null };
     } catch (error) {
-      console.error('Erro ao criar assinatura trial:', error);
+      // console.error('Erro ao criar assinatura trial:', error);
       return { subscription: null, error: error as Error };
     }
   };
 
   const updateSubscription = useCallback(async (plan: SubscriptionPlan) => {
-    if (!userId) return { error: new Error('Usuário não autenticado') };
+    if (!hookUserId) return { error: new Error('Usuário não autenticado') };
 
     try {
       const { data, error } = await supabase
@@ -113,7 +116,7 @@ export function useSubscription() {
           canceled_at: null,
           updated_at: new Date().toISOString()
         })
-        .eq('user_id', userId)
+        .eq('user_id', hookUserId)
         .select()
         .single();
 
@@ -121,13 +124,13 @@ export function useSubscription() {
       setSubscription(data);
       return { data, error: null };
     } catch (error) {
-      console.error('Erro ao atualizar assinatura:', error);
+      // console.error('Erro ao atualizar assinatura:', error);
       return { data: null, error };
     }
-  }, [userId]);
+  }, [hookUserId]);
 
   const cancelSubscription = useCallback(async () => {
-    if (!userId) return { error: new Error('Usuário não autenticado') };
+    if (!hookUserId) return { error: new Error('Usuário não autenticado') };
 
     try {
       const { data, error } = await supabase
@@ -137,7 +140,7 @@ export function useSubscription() {
           canceled_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
-        .eq('user_id', userId)
+        .eq('user_id', hookUserId)
         .select()
         .single();
 
@@ -145,25 +148,29 @@ export function useSubscription() {
       setSubscription(data);
       return { data, error: null };
     } catch (error) {
-      console.error('Erro ao cancelar assinatura:', error);
+      // console.error('Erro ao cancelar assinatura:', error);
       return { data: null, error };
     }
-  }, [userId]);
+  }, [hookUserId]);
 
   const checkAccess = useCallback(async () => {
-    if (!userId) return false;
+    if (!hookUserId) {
+        // console.warn("useSubscription - checkAccess: hookUserId é nulo. Retornando false.");
+        return false;
+    }
+    // console.log("useSubscription - checkAccess: Verificando acesso para hookUserId:", hookUserId);
 
     try {
       const { data: hasAccess } = await supabase.rpc('check_user_access', {
-        user_uuid: userId
+        user_uuid: hookUserId
       });
-
+      // console.log("useSubscription - checkAccess: Resultado da RPC:", hasAccess);
       return hasAccess;
     } catch (error) {
-      console.error('Erro ao verificar acesso:', error);
+      // console.error('Erro ao verificar acesso:', error);
       return false;
     }
-  }, [userId]);
+  }, [hookUserId]);
 
   return {
     subscription,
