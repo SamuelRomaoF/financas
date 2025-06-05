@@ -12,6 +12,7 @@ interface ConfirmationModalProps {
   cancelButtonText?: string;
   // Usar as variantes válidas do nosso componente Button, mapeando 'destructive' para 'danger'
   confirmButtonIntent?: 'primary' | 'destructive' | 'secondary' | 'success' | 'warning' | 'outline' | 'ghost'; 
+  isConfirmDisabled?: boolean;
 }
 
 export default function ConfirmationModal({
@@ -22,7 +23,8 @@ export default function ConfirmationModal({
   message,
   confirmButtonText = 'Confirmar',
   cancelButtonText = 'Cancelar',
-  confirmButtonIntent = 'primary' // Renomeado de confirmButtonVariant para confirmButtonIntent para clareza
+  confirmButtonIntent = 'primary',
+  isConfirmDisabled = false
 }: ConfirmationModalProps) {
   if (!isOpen) return null;
 
@@ -75,7 +77,11 @@ export default function ConfirmationModal({
           <Button variant="ghost" onClick={onClose}>
             {cancelButtonText}
           </Button>
-          <Button variant={actualButtonVariant} onClick={onConfirm}>
+          <Button 
+            variant={actualButtonVariant} 
+            onClick={onConfirm} 
+            disabled={isConfirmDisabled}
+          >
             {confirmButtonText}
           </Button>
         </div>

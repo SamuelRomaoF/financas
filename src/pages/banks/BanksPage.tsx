@@ -14,18 +14,15 @@ import type { BankAccount } from '../../types/finances';
 const PREMIUM_ACCOUNT_LIMIT = 5;
 
 export default function BanksPage() {
-  const { accounts, addAccount, removeAccount } = useBankAccounts();
+  const { accounts, addAccount, removeAccount, isLoadingAccounts } = useBankAccounts();
   const [isAddAccountModalOpen, setIsAddAccountModalOpen] = useState(false);
   const [isConfirmRemoveModalOpen, setIsConfirmRemoveModalOpen] = useState(false);
   const [accountToRemove, setAccountToRemove] = useState<BankAccount | null>(null);
-  const [loading] = useState(false);
+
+  const isAtAccountLimit = accounts.length >= PREMIUM_ACCOUNT_LIMIT;
 
   const handleAddAccountClick = () => {
-    if (accounts.length >= PREMIUM_ACCOUNT_LIMIT) {
-      toast.error(`Você atingiu o limite de ${PREMIUM_ACCOUNT_LIMIT} contas para o seu plano.`);
-    } else {
-      setIsAddAccountModalOpen(true);
-    }
+    setIsAddAccountModalOpen(true);
   };
 
   const handleSaveAccount = (data: SaveableBankAccountData) => {
@@ -61,15 +58,17 @@ export default function BanksPage() {
       <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
         <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Minhas Contas</h1>
         <button
-          className="flex items-center gap-2 bg-primary-500 text-white px-4 py-2 rounded-lg hover:bg-primary-600 transition-colors duration-150 shadow hover:shadow-md"
+          className="flex items-center gap-2 bg-primary-500 text-white px-4 py-2 rounded-lg hover:bg-primary-600 transition-colors duration-150 shadow hover:shadow-md disabled:bg-gray-400 disabled:cursor-not-allowed"
           onClick={handleAddAccountClick}
+          disabled={isAtAccountLimit}
+          title={isAtAccountLimit ? `Limite de ${PREMIUM_ACCOUNT_LIMIT} contas atingido` : 'Adicionar nova conta'}
         >
           <Plus size={20} />
           Nova Conta
         </button>
       </div>
 
-      {loading ? (
+      {isLoadingAccounts ? (
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-500"></div>
         </div>
@@ -128,8 +127,9 @@ export default function BanksPage() {
                 Adicione sua primeira conta para começar a gerenciar suas finanças.
               </p>
               <button
-                className="flex items-center gap-2 mx-auto bg-primary-500 text-white px-4 py-2 rounded-lg hover:bg-primary-600 transition-colors duration-150 shadow hover:shadow-md"
+                className="flex items-center gap-2 mx-auto bg-primary-500 text-white px-4 py-2 rounded-lg hover:bg-primary-600 transition-colors duration-150 shadow hover:shadow-md disabled:bg-gray-400 disabled:cursor-not-allowed"
                 onClick={handleAddAccountClick}
+                disabled={isAtAccountLimit}
               >
                 <Plus size={20} />
                 Adicionar Nova Conta

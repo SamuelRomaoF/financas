@@ -1,48 +1,55 @@
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
 import DashboardHeader from '../../components/dashboard/DashboardHeader';
 import ResumoFinanceiro from '../../components/dashboard/ResumoFinanceiro';
 import GraficosDashboard from '../../components/dashboard/GraficosDashboard';
-
-// Dados mockados para o dashboard
-const mockTransactionData = [
-  { name: 'Alimentação', value: 1250, color: '#EF4444' },
-  { name: 'Transporte', value: 800, color: '#F59E0B' },
-  { name: 'Moradia', value: 2300, color: '#10B981' },
-  { name: 'Lazer', value: 650, color: '#3B82F6' },
-  { name: 'Outros', value: 450, color: '#8B5CF6' },
-];
-
-const mockMonthlyData = [
-  { name: 'Jan', receitas: 5500, despesas: 4200 },
-  { name: 'Fev', receitas: 5800, despesas: 4500 },
-  { name: 'Mar', receitas: 6000, despesas: 4800 },
-  { name: 'Abr', receitas: 5900, despesas: 4600 },
-  { name: 'Mai', receitas: 6200, despesas: 4300 },
-  { name: 'Jun', receitas: 6500, despesas: 4400 },
-];
+import { useTransactions } from '../../contexts/TransactionContext';
+import { CATEGORY_COLORS } from '../../utils/categoryColors';
 
 export default function GratisDashboard() {
-  const [isLoading, setIsLoading] = useState(true);
-  const [summaryData, setSummaryData] = useState({
-    balance: 0,
-    income: 0,
-    expenses: 0,
-    savings: 0, // Mantendo economias por enquanto, conforme código original
-  });
+  const { transactions, isLoading } = useTransactions();
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setSummaryData({
-        balance: 5450,
-        income: 8500,
-        expenses: 4350,
-        savings: 1300,
-      });
-      setIsLoading(false);
-    }, 1000);
+  const summaryData = useMemo(() => {
+    const currentDate = new Date();
+    const currentMonth = currentDate.getMonth();
+    const currentYear = currentDate.getFullYear();
 
-    return () => clearTimeout(timer);
-  }, []);
+    const monthlyTransactions = transactions.filter(t => {
+      const transactionDate = new Date(t.date);
+      return transactionDate.getMonth() === currentMonth && transactionDate.getFullYear() === currentYear;
+    });
+
+    const income = monthlyTransactions
+      .filter(t => t.type === 'income')
+      .reduce((acc, t) => acc + t.amount, 0);
+
+    const expenses = monthlyTransactions
+      .filter(t => t.type === 'expense')
+      .reduce((acc, t) => acc + t.amount, 0);
+
+    const balance = income - expenses;
+
+    return { income, expenses, balance, savings: 0 }; // Savings não é usado no plano grátis
+  }, [transactions]);
+  
+  const expenseByCategoryData = useMemo(() => {
+    const expenseTransactions = transactions.filter(t => t.type === 'expense');
+
+    const expensesByCategory = expenseTransactions.reduce((acc, transaction) => {
+      const category = transaction.category || 'Outros';
+      if (!acc[category]) {
+        acc[category] = 0;
+      }
+      acc[category] += transaction.amount;
+      return acc;
+    }, {} as Record<string, number>);
+
+    return Object.entries(expensesByCategory).map(([name, value], index) => ({
+      name,
+      value,
+      color: CATEGORY_COLORS[name.toLowerCase()] || CATEGORY_COLORS['outros']
+    }));
+  }, [transactions]);
+
 
   if (isLoading) {
     return (
@@ -57,8 +64,8 @@ export default function GratisDashboard() {
       <DashboardHeader planName="Gratuito" />
       <ResumoFinanceiro summaryData={summaryData} showSavings={false} /> 
       <GraficosDashboard 
-        transactionData={mockTransactionData} 
-        monthlyData={mockMonthlyData} 
+        transactionData={expenseByCategoryData} 
+        monthlyData={[]} // Gráfico de barras não usado no plano grátis
         showPieChart={true} 
         showBarChart={false} 
       />

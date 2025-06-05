@@ -32,7 +32,7 @@ export function useSubscription() {
         .eq('user_id', hookUserId)
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
       setSubscription(data);
@@ -66,9 +66,9 @@ export function useSubscription() {
         .eq('user_id', userIdToUse)
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
-      if (fetchError && fetchError.code !== 'PGRST116') {
+      if (fetchError) {
         throw fetchError;
       }
 

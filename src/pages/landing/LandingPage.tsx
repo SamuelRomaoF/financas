@@ -9,29 +9,46 @@ import {
     X
 } from 'lucide-react';
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import Navbar from '../../components/layout/Navbar';
+import ConfirmationModal from '../../components/ui/ConfirmationModal';
 import { useAuth } from '../../hooks/useAuth';
 import { useSubscription } from '../../hooks/useSubscription';
 
 export default function LandingPage() {
-  const [showTrialModal, setShowTrialModal] = useState(false);
   const { user } = useAuth();
   const { createTrialSubscription } = useSubscription();
   const navigate = useNavigate();
 
+  // Estados para o modal
+  const [isConfirmationModalOpen, setIsConfirmationModalOpen] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+
   const handleStartTrial = async () => {
-    if (user) {
-      try {
-        const { error } = await createTrialSubscription();
-        if (error) throw error;
-        navigate('/dashboard');
-      } catch (error) {
-        console.error('Erro ao criar assinatura trial:', error);
-        alert('Erro ao criar assinatura trial. Tente novamente.');
+    if (!user) {
+      navigate('/register');
+      return;
+    }
+    setIsConfirmationModalOpen(true);
+  };
+
+  const handleConfirmSubscription = async () => {
+    if (!user) return;
+    setIsProcessing(true);
+    try {
+      const { error } = await createTrialSubscription(user);
+      if (error) {
+        throw error;
       }
-    } else {
-      setShowTrialModal(true);
+      toast.success('Plano de teste iniciado! Bem-vindo(a)!');
+      navigate('/dashboard');
+    } catch (error: any) {
+      console.error('Erro ao criar assinatura trial:', error);
+      toast.error(error.message || 'Erro ao criar assinatura trial. Tente novamente.');
+    } finally {
+      setIsProcessing(false);
+      setIsConfirmationModalOpen(false);
     }
   };
 
@@ -52,13 +69,13 @@ export default function LandingPage() {
                 tudo começando com mensagens direto pelo WhatsApp.
               </p>
               <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 animate-fade-in" style={{ animationDelay: '0.2s' }}>
-                <Link 
-                  to="/register" 
+                <button 
+                  onClick={handleStartTrial}
                   className="btn inline-flex items-center justify-center px-6 py-3 bg-white text-primary-600 hover:bg-neutral-100 font-medium rounded-lg shadow-md transition-colors"
                 >
                   Começar agora
                   <ArrowRight size={18} className="ml-2" />
-                </Link>
+                </button>
                 <a 
                   href="#como-funciona" 
                   className="btn inline-flex items-center justify-center px-6 py-3 border border-white/30 text-white hover:bg-white/10 font-medium rounded-lg transition-colors"
@@ -201,10 +218,10 @@ export default function LandingPage() {
           </div>
           
           <div className="mt-16 text-center">
-            <Link to="/register" className="btn-primary inline-flex items-center px-6 py-3">
+            <button onClick={handleStartTrial} className="btn-primary inline-flex items-center px-6 py-3">
               Começar agora
               <ArrowRight size={18} className="ml-2" />
-            </Link>
+            </button>
           </div>
         </div>
       </section>
@@ -254,7 +271,7 @@ export default function LandingPage() {
               
               <button 
                 onClick={handleStartTrial}
-                className="btn-outline w-full justify-center"
+                className="btn-outline w-full"
               >
                 Experimente grátis
               </button>
@@ -295,9 +312,12 @@ export default function LandingPage() {
                 </li>
               </ul>
               
-              <Link to="/register" className="btn-primary w-full justify-center">
+              <button 
+                onClick={handleStartTrial}
+                className="btn-primary w-full justify-center"
+              >
                 Escolher plano
-              </Link>
+              </button>
             </div>
             
             {/* Premium Plan */}
@@ -338,9 +358,12 @@ export default function LandingPage() {
                 </li>
               </ul>
               
-              <Link to="/register" className="btn-outline w-full justify-center">
+              <button 
+                onClick={handleStartTrial}
+                className="btn-outline w-full justify-center"
+              >
                 Escolher plano
-              </Link>
+              </button>
             </div>
           </div>
         </div>
@@ -407,10 +430,10 @@ export default function LandingPage() {
             <p className="text-xl opacity-90 mb-8">
               Junte-se a milhares de pessoas que já transformaram sua relação com o dinheiro.
             </p>
-            <Link to="/register" className="btn inline-flex items-center justify-center px-8 py-3 bg-white text-primary-600 hover:bg-neutral-100 text-lg font-medium rounded-lg shadow-md transition-colors">
+            <button onClick={handleStartTrial} className="btn inline-flex items-center justify-center px-8 py-3 bg-white text-primary-600 hover:bg-neutral-100 text-lg font-medium rounded-lg shadow-md transition-colors">
               Criar conta gratuitamente
               <ArrowRight size={20} className="ml-2" />
-            </Link>
+            </button>
           </div>
         </div>
       </section>
@@ -484,70 +507,16 @@ export default function LandingPage() {
       </footer>
 
       {/* Modal de Confirmação do Trial */}
-      {showTrialModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full p-6 relative animate-fade-in">
-            <button
-              onClick={() => setShowTrialModal(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-500"
-            >
-              <X className="h-5 w-5" />
-            </button>
-
-            <div className="text-center">
-              <h3 className="text-xl font-bold text-gray-900 mb-4">
-                Comece seu período gratuito
-              </h3>
-              
-              <div className="mb-6">
-                <div className="text-4xl font-bold text-primary-600 mb-2">
-                  R$ 0,00
-                </div>
-                <p className="text-sm text-gray-500">
-                  por 7 dias
-                </p>
-              </div>
-
-              <div className="space-y-4 mb-6 text-left">
-                <div className="flex items-center">
-                  <Check className="h-5 w-5 text-success-500 mr-2" />
-                  <span className="text-gray-600">
-                    Acesso a todas as funcionalidades básicas
-                  </span>
-                </div>
-                <div className="flex items-center">
-                  <Check className="h-5 w-5 text-success-500 mr-2" />
-                  <span className="text-gray-600">
-                    Até 50 transações por mês
-                  </span>
-                </div>
-                <div className="flex items-center">
-                  <Check className="h-5 w-5 text-success-500 mr-2" />
-                  <span className="text-gray-600">
-                    Cancele quando quiser
-                  </span>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <Link 
-                  to="/register" 
-                  className="btn-primary w-full justify-center inline-flex items-center"
-                >
-                  Começar agora
-                  <ArrowRight className="h-4 w-4 ml-2" />
-                </Link>
-                <button
-                  onClick={() => setShowTrialModal(false)}
-                  className="text-sm text-gray-500 hover:text-gray-700"
-                >
-                  Talvez depois
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmationModal
+        isOpen={isConfirmationModalOpen}
+        onClose={() => setIsConfirmationModalOpen(false)}
+        onConfirm={handleConfirmSubscription}
+        title="Confirmar Início do Teste Gratuito"
+        message="Você está prestes a iniciar seu período de teste no plano Gratuito por 7 dias. Deseja continuar?"
+        confirmButtonText={isProcessing ? "Iniciando..." : "Sim, Iniciar Teste"}
+        cancelButtonText="Cancelar"
+        isConfirmDisabled={isProcessing}
+      />
     </div>
   );
 } 

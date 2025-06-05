@@ -1,79 +1,37 @@
 import { ArrowDownLeft, ArrowUpRight, X } from 'lucide-react';
-import { ChangeEvent, useState } from 'react';
+import { ChangeEvent, useState, useMemo } from 'react';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 import Select from '../ui/Select';
-import { SubscriptionPlan } from '../../hooks/useSubscription';
-
-interface BankAccount {
-  id: string;
-  bankName: string;
-  accountType: 'corrente' | 'poupanca' | 'investimento';
-  accountNumber: string;
-  balance: number;
-  color: string;
-}
-
-interface CreditCard {
-  id: string;
-  name: string;
-  number: string;
-  limit: number;
-  currentSpending: number;
-  dueDate: number;
-  closingDate: number;
-  color: string;
-  brand: 'visa' | 'mastercard' | 'elo' | 'amex';
-}
+import { useBankAccounts } from '../../contexts/BankAccountContext';
+import { Transaction } from '../../contexts/TransactionContext';
 
 interface NewTransactionModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: {
-    type: 'entrada' | 'saida';
-    description: string;
-    amount: number;
-    category: string;
-    date: string;
-    paymentMethod: 'pix' | 'dinheiro' | 'debito' | 'credito';
-    bankAccountId?: string;
-    creditCardId?: string;
-  }) => void;
-  bankAccounts: BankAccount[];
-  creditCards: CreditCard[];
-  userPlan: SubscriptionPlan | null;
+  onSubmit: (data: Omit<Transaction, 'id' | 'user_id'>) => void;
+  // Receber categorias dinamicamente
+  categories: string[]; 
 }
 
 export default function NewTransactionModal({
   isOpen,
   onClose,
   onSubmit,
-  bankAccounts,
-  creditCards,
-  userPlan
+  categories,
 }: NewTransactionModalProps) {
-  const [type, setType] = useState<'entrada' | 'saida'>('entrada');
+  const [type, setType] = useState<'income' | 'expense'>('income');
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [paymentMethod, setPaymentMethod] = useState<'pix' | 'dinheiro' | 'debito' | 'credito'>('pix');
-  const [bankAccountId, setBankAccountId] = useState('');
-  const [creditCardId, setCreditCardId] = useState('');
-
-  const categories = [
-    'Alimentação',
-    'Compras Online',
-    'Combustível',
-    'Educação',
-    'Lazer',
-    'Moradia',
-    'Receitas',
-    'Saúde',
-    'Streaming',
-    'Transporte',
-    'Outros'
-  ];
+  const [bankAccountId, setBankAccountId] = useState<string | undefined>(undefined);
+  
+  // Simplificado por enquanto - no futuro, isso pode ser um campo no form
+  // const [paymentMethod, setPaymentMethod] = useState<'pix' | 'dinheiro' | 'debito' | 'credito'>('pix');
+  // const [bankAccountId, setBankAccountId] = useState('');
+  
+  const { accounts } = useBankAccounts();
 
   if (!isOpen) return null;
 
@@ -86,21 +44,16 @@ export default function NewTransactionModal({
       amount: Number(amount),
       category,
       date,
-      paymentMethod,
-      ...(paymentMethod === 'debito' && { bankAccountId }),
-      ...(paymentMethod === 'credito' && { creditCardId })
+      bank_id: bankAccountId,
     });
 
     // Limpa o formulário
-    setType('entrada');
+    setType('income');
     setDescription('');
     setAmount('');
     setCategory('');
     setDate(new Date().toISOString().split('T')[0]);
-    setPaymentMethod('pix');
-    setBankAccountId('');
-    setCreditCardId('');
-
+    setBankAccountId(undefined);
     onClose();
   };
 
@@ -147,12 +100,12 @@ export default function NewTransactionModal({
                 type="button"
                 className={`
                   flex items-center gap-2 justify-center p-4 rounded-lg border-2 transition-colors
-                  ${type === 'entrada'
+                  ${type === 'income' // Corrigido
                     ? 'border-success-600 bg-success-50 text-success-600 dark:border-success-400 dark:bg-success-900/30 dark:text-success-400'
                     : 'border-gray-200 hover:border-success-600 dark:border-gray-700 dark:hover:border-success-400'
                   }
                 `}
-                onClick={() => setType('entrada')}
+                onClick={() => setType('income')} // Corrigido
               >
                 <ArrowDownLeft className="h-5 w-5" />
                 Entrada
@@ -161,12 +114,12 @@ export default function NewTransactionModal({
                 type="button"
                 className={`
                   flex items-center gap-2 justify-center p-4 rounded-lg border-2 transition-colors
-                  ${type === 'saida'
+                  ${type === 'expense' // Corrigido
                     ? 'border-error-600 bg-error-50 text-error-600 dark:border-error-400 dark:bg-error-900/30 dark:text-error-400'
                     : 'border-gray-200 hover:border-error-600 dark:border-gray-700 dark:hover:border-error-400'
                   }
                 `}
-                onClick={() => setType('saida')}
+                onClick={() => setType('expense')} // Corrigido
               >
                 <ArrowUpRight className="h-5 w-5" />
                 Saída
@@ -239,6 +192,28 @@ export default function NewTransactionModal({
               </Select>
             </div>
 
+            {/* Conta Bancária (para despesas) */}
+            {type === 'expense' && (
+              <div className="space-y-2">
+                <label htmlFor="bankAccountId" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Pagar com
+                </label>
+                <Select
+                  id="bankAccountId"
+                  value={bankAccountId || ''}
+                  onChange={(e) => setBankAccountId(e.target.value)}
+                  required
+                >
+                  <option value="">Selecione uma conta</option>
+                  {accounts.map(acc => (
+                    <option key={acc.id} value={acc.id}>
+                      {acc.bankName}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            )}
+
             {/* Data */}
             <div className="space-y-2">
               <label 
@@ -255,71 +230,6 @@ export default function NewTransactionModal({
                 required
               />
             </div>
-
-            {/* Método de Pagamento */}
-            <div className="space-y-2">
-              <label 
-                htmlFor="paymentMethod"
-                className="text-sm font-medium text-gray-700 dark:text-gray-300"
-              >
-                Método de Pagamento
-              </label>
-              <Select
-                id="paymentMethod"
-                value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value as typeof paymentMethod)}
-                required
-              >
-                <option value="pix">PIX</option>
-                <option value="dinheiro">Dinheiro</option>
-                <option value="debito">Débito</option>
-                <option value="credito">Crédito</option>
-              </Select>
-            </div>
-
-            {/* Conta de Débito - Condicional ao plano */}
-            {userPlan !== 'free' && paymentMethod === 'debito' && (
-              <div className="space-y-2">
-                <label htmlFor="bankAccountId" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Conta de Débito
-                </label>
-                <Select
-                  id="bankAccountId"
-                  value={bankAccountId}
-                  onChange={(e) => setBankAccountId(e.target.value)}
-                  required
-                >
-                  <option value="">Selecione uma conta</option>
-                  {bankAccounts.map(acc => (
-                    <option key={acc.id} value={acc.id}>
-                      {acc.bankName} - {acc.accountNumber}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-            )}
-
-            {/* Cartão de Crédito - Condicional ao plano */}
-            {userPlan !== 'free' && paymentMethod === 'credito' && (
-              <div className="space-y-2">
-                <label htmlFor="creditCardId" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Cartão de Crédito
-                </label>
-                <Select
-                  id="creditCardId"
-                  value={creditCardId}
-                  onChange={(e) => setCreditCardId(e.target.value)}
-                  required
-                >
-                  <option value="">Selecione um cartão</option>
-                  {creditCards.map(card => (
-                    <option key={card.id} value={card.id}>
-                      {card.name} - {card.number}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-            )}
 
             {/* Botões */}
             <div className="flex justify-end gap-3 pt-4">

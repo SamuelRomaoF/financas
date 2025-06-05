@@ -1,11 +1,13 @@
 import { Check, CreditCard, Crown, Star } from 'lucide-react';
 import { useState } from 'react';
+import toast from 'react-hot-toast';
 import Button from '../../components/ui/Button';
+import ConfirmationModal from '../../components/ui/ConfirmationModal';
 import { useAuth } from '../../hooks/useAuth';
-import { useSubscription } from '../../hooks/useSubscription';
+import { useSubscription, SubscriptionPlan } from '../../hooks/useSubscription';
 
 interface Plan {
-  id: string;
+  id: SubscriptionPlan;
   name: string;
   price: number;
   period: 'monthly' | 'yearly';
@@ -59,8 +61,46 @@ const plans: Plan[] = [
 
 export default function PlansPage() {
   const { user } = useAuth();
-  const { subscription, loading: loadingSubscription } = useSubscription();
+  const { subscription, createTrialSubscription, updateSubscription, isLoading: loadingSubscription } = useSubscription();
   const [selectedPeriod, setSelectedPeriod] = useState<'monthly' | 'yearly'>('monthly');
+  
+  const [isConfirmationModalOpen, setIsConfirmationModalOpen] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const handleSelectPlan = (plan: Plan) => {
+    setSelectedPlan(plan);
+    setIsConfirmationModalOpen(true);
+  };
+
+  const handleConfirmSubscription = async () => {
+    if (!selectedPlan || !user) return;
+
+    setIsProcessing(true);
+
+    try {
+      let result;
+      if (!subscription || subscription.status !== 'active') {
+        result = await createTrialSubscription(user);
+      } else {
+        result = await updateSubscription(selectedPlan.id as SubscriptionPlan);
+      }
+
+      if (result.error) {
+        throw result.error;
+      }
+
+      toast.success(`Você agora está no plano ${selectedPlan.name}!`);
+
+    } catch (error: any) {
+      console.error("Erro ao processar assinatura:", error);
+      toast.error(error.message || `Houve um erro ao processar sua assinatura. Tente novamente.`);
+    } finally {
+      setIsProcessing(false);
+      setIsConfirmationModalOpen(false);
+      setSelectedPlan(null);
+    }
+  };
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -85,13 +125,13 @@ export default function PlansPage() {
   const filteredPlansToDisplay = plans.filter(plan => {
     if (subscription?.status === 'active') {
       if (subscription.plan === 'basic') {
-        return plan.id === 'premium'; // Se no básico, mostrar apenas o premium para upgrade
+        return plan.id === 'premium';
       }
       if (subscription.plan === 'premium') {
-        return false; // Se no premium, não mostrar nenhum card adicional na lista de opções
+        return false;
       }
     }
-    return true; // Se no free ou sem plano, ou se a lógica acima não se aplicar, mostrar o plano (será filtrado no map para não mostrar o atual como opção)
+    return true;
   });
 
   if (loadingSubscription) {
@@ -111,7 +151,6 @@ export default function PlansPage() {
         </p>
       </div>
 
-      {/* Plano atual */}
       <div className="bg-primary-50 dark:bg-primary-900/30 rounded-lg p-6 border border-primary-200 dark:border-primary-800">
         <div className="flex items-start justify-between">
           <div>
@@ -144,10 +183,8 @@ export default function PlansPage() {
         </div>
       </div>
 
-      {/* Condicionalmente renderiza o seletor de período e a lista de planos */}
       {!(subscription?.status === 'active' && subscription?.plan === 'premium') && filteredPlansToDisplay.length > 0 && (
         <>
-          {/* Seletor de período - Mostrar apenas se o plano for 'free' ou não houver plano */}
           {!(subscription?.status === 'active' && subscription?.plan === 'basic') && (
             <div className="flex justify-center py-4">
         <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 p-1">
@@ -176,12 +213,9 @@ export default function PlansPage() {
       </div>
           )}
 
-      {/* Lista de planos */}
           {filteredPlansToDisplay.length === 1 ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 place-items-center">
-              {/* Div vazia para a primeira coluna em telas médias e maiores */} 
               <div className="hidden md:block"></div>
-              {/* Card do plano (único) na coluna central ou ocupando tudo em telas menores */} 
               {filteredPlansToDisplay.map((plan) => {
                 const price = selectedPeriod === 'yearly' && plan.id !== 'free' ? plan.price * 0.8 * 12 : plan.price;
                 const buttonText = 
@@ -194,7 +228,6 @@ export default function PlansPage() {
                     key={plan.id}
                     className={`relative bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 w-full max-w-md`}
                   >
-                    {/* Conteúdo do card como antes, sem a lógica de `plan.recommended` pois é o único card */}
                     <div className="text-center">
                       <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{plan.name}</h3>
                       <div className="mt-4">
@@ -213,7 +246,11 @@ export default function PlansPage() {
                           </li>
                         ))}
                       </ul>
-                      <Button variant={'primary'} className="mt-8 w-full">
+                      <Button 
+                        variant={'primary'} 
+                        className="mt-8 w-full"
+                        onClick={() => handleSelectPlan(plan)}
+                      >
                         <CreditCard className="h-4 w-4 mr-2" />
                         {buttonText}
                       </Button>
@@ -221,8 +258,7 @@ export default function PlansPage() {
                   </div>
                 );
               })}
-               {/* Div vazia para a terceira coluna em telas médias e maiores */} 
-              <div className="hidden md:block"></div>
+               <div className="hidden md:block"></div>
             </div>
           ) : (
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -252,8 +288,7 @@ export default function PlansPage() {
                   </span>
                 </div>
               )}
-                      {/* Restante do conteúdo do card para múltiplos cards */}
-              <div className="text-center">
+                      <div className="text-center">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{plan.name}</h3>
                 <div className="mt-4">
                   <span className="text-4xl font-bold text-gray-900 dark:text-white">
@@ -271,10 +306,14 @@ export default function PlansPage() {
                     </li>
                   ))}
                 </ul>
-                        <Button variant={'primary'} className="mt-8 w-full">
-                  <CreditCard className="h-4 w-4 mr-2" />
+                        <Button 
+                          variant={'primary'} 
+                          className="mt-8 w-full"
+                          onClick={() => handleSelectPlan(plan)}
+                        >
+                          <CreditCard className="h-4 w-4 mr-2" />
                           {buttonText}
-                </Button>
+                        </Button>
               </div>
             </div>
           );
@@ -283,6 +322,21 @@ export default function PlansPage() {
           )}
         </>
       )}
+
+      <ConfirmationModal
+        isOpen={isConfirmationModalOpen}
+        onClose={() => setIsConfirmationModalOpen(false)}
+        onConfirm={handleConfirmSubscription}
+        title={`Confirmar Plano ${selectedPlan?.name}`}
+        message={
+          selectedPlan?.id === 'free'
+            ? 'Você está prestes a iniciar seu período de teste no plano Gratuito. Deseja continuar?'
+            : `Você está prestes a assinar o plano ${selectedPlan?.name}. Um valor correspondente será cobrado. Deseja continuar?`
+        }
+        confirmButtonText={isProcessing ? "Processando..." : "Sim, Confirmar"}
+        cancelButtonText="Cancelar"
+        isConfirmDisabled={isProcessing}
+      />
     </div>
   );
 } 

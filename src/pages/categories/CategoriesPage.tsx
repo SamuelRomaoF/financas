@@ -1,87 +1,118 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import toast from 'react-hot-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { Plus, Search, Edit2, Trash2, AlertCircle } from 'lucide-react';
+import { useCategories, Category } from '../../contexts/CategoryContext';
+import { useTransactions } from '../../contexts/TransactionContext';
+import { CATEGORY_COLORS } from '../../utils/categoryColors';
+import { formatCurrency } from '../../utils/formatCurrency';
+import NewCategoryModal from '../../components/categories/NewCategoryModal';
 
-type Category = {
-  id: string;
-  name: string;
-  type: 'income' | 'expense';
-  color: string;
-  description?: string;
+type CategoryView = Category & {
   transactionCount: number;
   totalAmount: number;
 };
-
-const mockCategories: Category[] = [
-  {
-    id: '1',
-    name: 'Alimentação',
-    type: 'expense',
-    color: '#EF4444',
-    description: 'Gastos com alimentação, restaurantes e delivery',
-    transactionCount: 45,
-    totalAmount: 1250.00
-  },
-  {
-    id: '2',
-    name: 'Transporte',
-    type: 'expense',
-    color: '#F59E0B',
-    description: 'Gastos com combustível, transporte público e apps',
-    transactionCount: 30,
-    totalAmount: 800.00
-  },
-  {
-    id: '3',
-    name: 'Salário',
-    type: 'income',
-    color: '#10B981',
-    description: 'Rendimentos mensais do trabalho',
-    transactionCount: 6,
-    totalAmount: 5500.00
-  },
-  {
-    id: '4',
-    name: 'Freelance',
-    type: 'income',
-    color: '#3B82F6',
-    description: 'Trabalhos extras como freelancer',
-    transactionCount: 3,
-    totalAmount: 1200.00
-  }
-];
 
 export default function CategoriesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedType, setSelectedType] = useState<'all' | 'income' | 'expense'>('all');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [categoryToEdit, setCategoryToEdit] = useState<Category | null>(null);
 
-  const filteredCategories = mockCategories.filter(category => {
+  const { categories, isLoading: isLoadingCategories, addCategory, updateCategory, removeCategory } = useCategories();
+  const { transactions, isLoading: isLoadingTransactions } = useTransactions();
+
+  const enrichedCategories = useMemo((): CategoryView[] => {
+    const transactionStats = transactions.reduce((acc, t) => {
+      const categoryId = t.category_id;
+      if (!categoryId) return acc;
+
+      if (!acc[categoryId]) {
+        acc[categoryId] = { count: 0, total: 0 };
+      }
+      acc[categoryId].count++;
+      acc[categoryId].total += t.amount;
+      return acc;
+    }, {} as Record<string, { count: number, total: number }>);
+
+    return categories.map(cat => ({
+      ...cat,
+      transactionCount: transactionStats[cat.id]?.count || 0,
+      totalAmount: transactionStats[cat.id]?.total || 0,
+    }));
+  }, [categories, transactions]);
+
+  const filteredCategories = enrichedCategories.filter(category => {
     const matchesSearch = category.name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = selectedType === 'all' || category.type === selectedType;
     return matchesSearch && matchesType;
   });
 
+  const handleSaveCategory = async (data: Omit<Category, 'id' | 'user_id'>, id?: string) => {
+    const action = id ? updateCategory(id, data) : addCategory(data);
+    const toastId = toast.loading(id ? 'Atualizando categoria...' : 'Adicionando categoria...');
+
+    const { error } = await action;
+
+    if (error) {
+      toast.error(error.message, { id: toastId });
+    } else {
+      toast.success(`Categoria ${id ? 'atualizada' : 'adicionada'} com sucesso!`, { id: toastId });
+      setIsModalOpen(false);
+      setCategoryToEdit(null);
+    }
+  };
+  
+  const handleAddNewClick = () => {
+    setCategoryToEdit(null);
+    setIsModalOpen(true);
+  };
+
+  const handleEditClick = (category: Category) => {
+    setCategoryToEdit(category);
+    setIsModalOpen(true);
+  };
+
   const handleDeleteClick = (category: Category) => {
     setCategoryToDelete(category);
     setShowDeleteModal(true);
   };
+  
+  const handleDeleteConfirm = async () => {
+    if (!categoryToDelete) return;
 
-  const handleDeleteConfirm = () => {
-    // Aqui implementaríamos a lógica real de deleção
-    console.log('Categoria deletada:', categoryToDelete?.name);
+    const toastId = toast.loading('Excluindo categoria...');
+    const { error } = await removeCategory(categoryToDelete.id);
+
+    if (error) {
+      toast.error(error.message, { id: toastId });
+    } else {
+      toast.success('Categoria excluída com sucesso!', { id: toastId });
+    }
+
     setShowDeleteModal(false);
     setCategoryToDelete(null);
   };
+
+  const isLoading = isLoadingCategories || isLoadingTransactions;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Categorias</h1>
-        <Button variant="primary" className="flex items-center">
+        <Button variant="primary" className="flex items-center" onClick={handleAddNewClick}>
           <Plus className="h-4 w-4 mr-2" />
           Nova Categoria
         </Button>
@@ -103,24 +134,9 @@ export default function CategoriesPage() {
               </div>
             </div>
             <div className="flex gap-2">
-              <Button
-                variant={selectedType === 'all' ? 'primary' : 'outline'}
-                onClick={() => setSelectedType('all')}
-              >
-                Todas
-              </Button>
-              <Button
-                variant={selectedType === 'income' ? 'success' : 'outline'}
-                onClick={() => setSelectedType('income')}
-              >
-                Receitas
-              </Button>
-              <Button
-                variant={selectedType === 'expense' ? 'error' : 'outline'}
-                onClick={() => setSelectedType('expense')}
-              >
-                Despesas
-              </Button>
+              <Button variant={selectedType === 'all' ? 'primary' : 'outline'} onClick={() => setSelectedType('all')}>Todas</Button>
+              <Button variant={selectedType === 'income' ? 'success' : 'outline'} onClick={() => setSelectedType('income')}>Receitas</Button>
+              <Button variant={selectedType === 'expense' ? 'danger' : 'outline'} onClick={() => setSelectedType('expense')}>Despesas</Button>
             </div>
           </div>
         </CardHeader>
@@ -131,7 +147,6 @@ export default function CategoriesPage() {
                 <tr className="border-b border-gray-200 dark:border-gray-700">
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Nome</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Tipo</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Descrição</th>
                   <th className="px-4 py-3 text-right text-sm font-medium text-gray-500 dark:text-gray-400">Transações</th>
                   <th className="px-4 py-3 text-right text-sm font-medium text-gray-500 dark:text-gray-400">Total</th>
                   <th className="px-4 py-3 text-right text-sm font-medium text-gray-500 dark:text-gray-400">Ações</th>
@@ -139,70 +154,28 @@ export default function CategoriesPage() {
               </thead>
               <tbody>
                 {filteredCategories.map((category) => (
-                  <tr
-                    key={category.id}
-                    className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50"
-                  >
+                  <tr key={category.id} className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50">
                     <td className="px-4 py-4">
                       <div className="flex items-center">
-                        <div
-                          className="w-3 h-3 rounded-full mr-3"
-                          style={{ backgroundColor: category.color }}
-                        />
-                        <span className="font-medium text-gray-900 dark:text-white">
-                          {category.name}
-                        </span>
+                        <div className="w-3 h-3 rounded-full mr-3" style={{ backgroundColor: CATEGORY_COLORS[category.name.toLowerCase()] || '#6B7280' }}/>
+                        <span className="font-medium text-gray-900 dark:text-white">{category.name}</span>
                       </div>
                     </td>
                     <td className="px-4 py-4">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                          ${category.type === 'income'
-                            ? 'bg-success-100 text-success-800 dark:bg-success-900/30 dark:text-success-400'
-                            : 'bg-error-100 text-error-800 dark:bg-error-900/30 dark:text-error-400'
-                          }`}
-                      >
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${category.type === 'income' ? 'bg-success-100 text-success-800 dark:bg-success-900/30 dark:text-success-400' : 'bg-error-100 text-error-800 dark:bg-error-900/30 dark:text-error-400'}`}>
                         {category.type === 'income' ? 'Receita' : 'Despesa'}
                       </span>
                     </td>
-                    <td className="px-4 py-4 text-sm text-gray-500 dark:text-gray-400">
-                      {category.description || '-'}
-                    </td>
-                    <td className="px-4 py-4 text-right text-sm text-gray-500 dark:text-gray-400">
-                      {category.transactionCount}
-                    </td>
+                    <td className="px-4 py-4 text-right text-sm text-gray-500 dark:text-gray-400">{category.transactionCount}</td>
                     <td className="px-4 py-4 text-right font-medium">
-                      <span
-                        className={category.type === 'income'
-                          ? 'text-success-600 dark:text-success-400'
-                          : 'text-error-600 dark:text-error-400'
-                        }
-                      >
-                        {new Intl.NumberFormat('pt-BR', {
-                          style: 'currency',
-                          currency: 'BRL'
-                        }).format(category.totalAmount)}
+                      <span className={category.type === 'income' ? 'text-success-600 dark:text-success-400' : 'text-error-600 dark:text-error-400'}>
+                        {formatCurrency(category.totalAmount)}
                       </span>
                     </td>
                     <td className="px-4 py-4 text-right">
                       <div className="flex justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="p-2"
-                          title="Editar"
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="p-2 text-error-600 hover:text-error-700 dark:text-error-400 dark:hover:text-error-300"
-                          title="Excluir"
-                          onClick={() => handleDeleteClick(category)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <Button variant="outline" size="sm" className="p-2" title="Editar" onClick={() => handleEditClick(category)}><Edit2 className="h-4 w-4" /></Button>
+                        <Button variant="outline" size="sm" className="p-2 text-error-600 hover:text-error-700 dark:text-error-400 dark:hover:text-error-300" title="Excluir" onClick={() => handleDeleteClick(category)}><Trash2 className="h-4 w-4" /></Button>
                       </div>
                     </td>
                   </tr>
@@ -213,36 +186,32 @@ export default function CategoriesPage() {
         </CardContent>
       </Card>
 
-      {/* Modal de confirmação de exclusão */}
+      {isModalOpen && (
+        <NewCategoryModal
+          isOpen={isModalOpen}
+          onClose={() => {
+            setIsModalOpen(false);
+            setCategoryToEdit(null);
+          }}
+          onSubmit={handleSaveCategory}
+          categoryToEdit={categoryToEdit}
+        />
+      )}
+
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
             <div className="p-6">
               <div className="flex items-center mb-4">
-                <div className="bg-error-100 dark:bg-error-900/30 rounded-full p-3">
-                  <AlertCircle className="h-6 w-6 text-error-600 dark:text-error-400" />
-                </div>
-                <h3 className="ml-3 text-lg font-medium text-gray-900 dark:text-white">
-                  Confirmar exclusão
-                </h3>
+                <div className="bg-error-100 dark:bg-error-900/30 rounded-full p-3"><AlertCircle className="h-6 w-6 text-error-600 dark:text-error-400" /></div>
+                <h3 className="ml-3 text-lg font-medium text-gray-900 dark:text-white">Confirmar exclusão</h3>
               </div>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                Tem certeza que deseja excluir a categoria "{categoryToDelete?.name}"? 
-                Esta ação não pode ser desfeita e todas as transações associadas serão descategorizadas.
+                Tem certeza que deseja excluir a categoria "{categoryToDelete?.name}"? Esta ação não pode ser desfeita.
               </p>
               <div className="mt-6 flex justify-end gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowDeleteModal(false)}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  variant="error"
-                  onClick={handleDeleteConfirm}
-                >
-                  Excluir
-                </Button>
+                <Button variant="outline" onClick={() => setShowDeleteModal(false)}>Cancelar</Button>
+                <Button variant="danger" onClick={handleDeleteConfirm}>Excluir</Button>
               </div>
             </div>
           </div>
