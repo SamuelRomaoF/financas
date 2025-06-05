@@ -2,34 +2,12 @@ import { CreditCard, ShoppingBag, X } from 'lucide-react';
 import { useState } from 'react';
 import { formatCurrency } from '../../utils/formatCurrency';
 import Button from '../ui/Button';
-
-interface Purchase {
-  id: string;
-  description: string;
-  amount: number;
-  date: string;
-  category: string;
-  installments?: {
-    current: number;
-    total: number;
-    amount: number;
-  };
-}
+import { CreditCardData, Purchase } from '../../types/finances';
 
 interface CreditCardDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  card: {
-    id: string;
-    name: string;
-    number: string;
-    limit: number;
-    currentSpending: number;
-    dueDate: number;
-    closingDate: number;
-    color: string;
-    brand: string;
-  };
+  card: CreditCardData;
 }
 
 export default function CreditCardDetailsModal({
@@ -112,7 +90,7 @@ export default function CreditCardDetailsModal({
                     {card.name}
                   </h2>
                   <p className="text-white/80">
-                    {card.number}
+                    •••• •••• •••• {card.lastFourDigits || 'XXXX'}
                   </p>
                 </div>
               </div>
@@ -134,7 +112,7 @@ export default function CreditCardDetailsModal({
               <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
                 <p className="text-white/80 text-sm">Limite Utilizado</p>
                 <p className="text-white text-lg font-bold mt-1">
-                  {formatCurrency(card.currentSpending)}
+                  {formatCurrency(card.currentSpending || 0)}
                 </p>
               </div>
               <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">

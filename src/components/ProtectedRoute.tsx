@@ -38,8 +38,8 @@ export function ProtectedRoute({ children, allowedPlans }: ProtectedRouteProps) 
     // console.log(`ProtectedRoute (${location.pathname}): Verificando allowedPlans. currentPlan: ${currentPlan}, allowedPlans:`, allowedPlans);
     if (!currentPlan || !allowedPlans.includes(currentPlan)) {
       // console.warn(`ProtectedRoute (${location.pathname}): Plano NÃO permitido. currentPlan: ${currentPlan}. REDIRECIONANDO PARA /dashboard (que o DashboardLoader tratará).`);
-      return <Navigate to="/dashboard" replace />;
-    }
+    return <Navigate to="/dashboard" replace />;
+  }
     // console.log(`ProtectedRoute (${location.pathname}): Plano PERMITIDO. currentPlan: ${currentPlan}. Renderizando children.`);
   } else {
     // console.log(`ProtectedRoute (${location.pathname}): Sem allowedPlans específicos para esta rota ou para o wrapper do AppLayout. Permitindo acesso e renderizando children.`);

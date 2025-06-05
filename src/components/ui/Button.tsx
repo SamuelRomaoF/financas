@@ -21,7 +21,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       success: 'bg-green-600 text-white hover:bg-green-700 focus-visible:ring-green-500',
       warning: 'bg-yellow-600 text-white hover:bg-yellow-700 focus-visible:ring-yellow-500',
       danger: 'bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500',
-      outline: 'border-2 border-gray-300 bg-transparent hover:bg-gray-100 focus-visible:ring-gray-500',
+      outline: 'border-2 border-gray-300 dark:border-gray-600 bg-transparent text-gray-700 dark:text-gray-300 hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-700 dark:hover:text-gray-100 focus-visible:ring-gray-500 dark:focus-visible:ring-gray-400',
       ghost: 'bg-transparent hover:bg-gray-100 focus-visible:ring-gray-500'
     };
 

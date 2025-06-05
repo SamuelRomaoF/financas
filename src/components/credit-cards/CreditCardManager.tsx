@@ -1,7 +1,7 @@
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { formatCurrency } from '../../utils/formatCurrency';
-import AddCreditCardModal from './AddCreditCardModal';
+import AddCardModal, { SaveableCreditCardData } from './AddCardModal';
 
 interface CreditCard {
   id: string;
@@ -14,7 +14,7 @@ interface CreditCard {
   dueDate: number;
   closingDate: number;
   color: string;
-  brand: 'visa' | 'mastercard';
+  brand: 'visa' | 'mastercard' | 'elo' | 'amex';
   currentInvoice: number;
   nextInvoice: number;
   recentTransactions: Array<{
@@ -27,9 +27,7 @@ interface CreditCard {
 
 export default function CreditCardManager() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-
-  // Mock data para cartões de crédito
-  const creditCards: CreditCard[] = [
+  const [creditCards, setCreditCards] = useState<CreditCard[]>([
     {
       id: '1',
       name: 'Nubank',
@@ -88,37 +86,34 @@ export default function CreditCardManager() {
         }
       ]
     }
-  ];
+  ]);
 
-  const handleAddCard = (cardData: { 
-    name: string;
-    number: string;
-    limit: number;
-    dueDate: number;
-    closingDate: number;
-    color: string;
-  }) => {
+  const handleAddCard = (cardDataFromModal: SaveableCreditCardData) => {
     const newCard: CreditCard = {
-      id: Math.random().toString(36).substr(2, 9),
-      ...cardData,
-      lastDigits: cardData.number.slice(-4),
-      availableLimit: cardData.limit,
+      id: Math.random().toString(36).substring(2, 9),
+      name: cardDataFromModal.name,
+      number: `•••• •••• •••• ${cardDataFromModal.lastFourDigits?.slice(-4) || 'XXXX'}`,
+      lastDigits: cardDataFromModal.lastFourDigits?.slice(-4) || 'XXXX',
+      limit: cardDataFromModal.limit,
+      availableLimit: cardDataFromModal.limit,
       currentSpending: 0,
-      brand: cardData.number.startsWith('4') ? 'visa' : 'mastercard',
-      number: '•••• •••• •••• ' + cardData.number.slice(-4),
+      dueDate: cardDataFromModal.dueDate,
+      closingDate: cardDataFromModal.closingDate,
+      color: cardDataFromModal.color,
+      brand: cardDataFromModal.brand,
       currentInvoice: 0,
       nextInvoice: 0,
       recentTransactions: []
     };
-    console.log('Novo cartão:', newCard);
+    setCreditCards(prevCards => [...prevCards, newCard]);
   };
 
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white">Cartões de Crédito</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Acompanhe seus gastos e limites</p>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">Cartões de Crédito (Manager)</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Acompanhe seus gastos e limites detalhadamente</p>
         </div>
         <button
           onClick={() => setIsAddModalOpen(true)}
@@ -135,12 +130,9 @@ export default function CreditCardManager() {
             key={card.id}
             className="rounded-lg overflow-hidden bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800"
           >
-            {/* Cabeçalho do cartão */}
             <div 
               className="p-4 flex justify-between items-center text-white"
-              style={{ 
-                background: card.color,
-              }}
+              style={{ background: card.color }}
             >
               <div>
                 <h3 className="font-semibold">{card.name}</h3>
@@ -152,8 +144,6 @@ export default function CreditCardManager() {
                 className="h-6"
               />
             </div>
-
-            {/* Barra de progresso do limite */}
             <div className="px-4 py-2">
               <div className="flex justify-between text-sm mb-1">
                 <span className="text-gray-600 dark:text-gray-400">Limite Utilizado</span>
@@ -171,8 +161,6 @@ export default function CreditCardManager() {
                 />
               </div>
             </div>
-
-            {/* Informações em grid */}
             <div className="grid grid-cols-3 border-t border-gray-200 dark:border-gray-800">
               <div className="p-3 text-center border-r border-gray-200 dark:border-gray-800">
                 <p className="text-xs text-gray-500 dark:text-gray-400">Vencimento</p>
@@ -187,8 +175,6 @@ export default function CreditCardManager() {
                 <p className="text-sm text-gray-900 dark:text-white mt-1">{formatCurrency(card.availableLimit)}</p>
               </div>
             </div>
-
-            {/* Faturas */}
             <div className="border-t border-gray-200 dark:border-gray-800">
               <div className="grid grid-cols-2">
                 <div className="p-3 border-r border-gray-200 dark:border-gray-800">
@@ -201,8 +187,6 @@ export default function CreditCardManager() {
                 </div>
               </div>
             </div>
-
-            {/* Transações Recentes */}
             <div className="border-t border-gray-200 dark:border-gray-800 p-3">
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Transações Recentes</p>
               <div className="space-y-2">
@@ -221,12 +205,11 @@ export default function CreditCardManager() {
         ))}
       </div>
 
-      {/* Modal de adicionar cartão */}
       {isAddModalOpen && (
-        <AddCreditCardModal
+        <AddCardModal
           isOpen={isAddModalOpen}
           onClose={() => setIsAddModalOpen(false)}
-          onAdd={handleAddCard}
+          onSaveCard={handleAddCard}
         />
       )}
     </div>

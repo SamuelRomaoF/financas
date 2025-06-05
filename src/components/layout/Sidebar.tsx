@@ -30,7 +30,7 @@ const allMenuItems = [
     title: 'Carteira',
     icon: Wallet,
     href: '/carteira',
-    allowedPlans: ['premium'] as SubscriptionPlan[]
+    allowedPlans: ['basic', 'premium'] as SubscriptionPlan[]
   },
   {
     title: 'Bancos',
@@ -157,3 +157,4 @@ export default function Sidebar({ closeMobileSidebar }: SidebarProps) {
     </div>
   );
 }
+

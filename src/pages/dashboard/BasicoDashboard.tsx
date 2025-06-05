@@ -1,9 +1,8 @@
-import { BarChart3, PlusCircle, Target, TrendingDown, TrendingUp } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Bar, BarChart, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import Button from '../../components/ui/Button';
-import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
-import { formatCurrency } from '../../utils/formatCurrency';
+import DashboardHeader from '../../components/dashboard/DashboardHeader';
+import ResumoFinanceiro from '../../components/dashboard/ResumoFinanceiro';
+import GraficosDashboard from '../../components/dashboard/GraficosDashboard';
+import AlertasSection from '../../components/dashboard/AlertasSection';
 
 // Dados mockados para o dashboard
 const mockTransactionData = [
@@ -21,6 +20,12 @@ const mockMonthlyData = [
   { name: 'Abr', receitas: 5900, despesas: 4600 },
   { name: 'Mai', receitas: 6200, despesas: 4300 },
   { name: 'Jun', receitas: 6500, despesas: 4400 },
+];
+
+const mockAlerts = [
+  { id: '1', title: 'Conta de água vence amanhã', type: 'bill_due', priority: 'high' },
+  { id: '2', title: 'Meta de economia quase atingida', type: 'goal_milestone', priority: 'medium' },
+  { id: '3', title: 'Limite de orçamento para Alimentação excedido', type: 'budget_exceeded', priority: 'high' },
 ];
 
 export default function BasicoDashboard() {
@@ -56,136 +61,11 @@ export default function BasicoDashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Dashboard (Plano Básico)</h1>
-        <Button variant="primary" className="flex items-center">
-          <PlusCircle className="h-4 w-4 mr-2" />
-          Nova Transação
-        </Button>
-      </div>
-
-      {/* Cards de resumo */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="bg-white dark:bg-gray-800">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Saldo Atual</p>
-                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{formatCurrency(summaryData.balance)}</h3>
-              </div>
-              <div className="h-12 w-12 bg-primary-100 dark:bg-primary-800/30 rounded-full flex items-center justify-center">
-                <BarChart3 className="h-6 w-6 text-primary-600 dark:text-primary-400" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-white dark:bg-gray-800">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Receitas do Mês</p>
-                <h3 className="text-2xl font-bold text-success-600 dark:text-success-400 mt-1">{formatCurrency(summaryData.income)}</h3>
-              </div>
-              <div className="h-12 w-12 bg-success-100 dark:bg-success-800/30 rounded-full flex items-center justify-center">
-                <TrendingUp className="h-6 w-6 text-success-600 dark:text-success-400" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-white dark:bg-gray-800">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Despesas do Mês</p>
-                <h3 className="text-2xl font-bold text-error-600 dark:text-error-400 mt-1">{formatCurrency(summaryData.expenses)}</h3>
-              </div>
-              <div className="h-12 w-12 bg-error-100 dark:bg-error-800/30 rounded-full flex items-center justify-center">
-                <TrendingDown className="h-6 w-6 text-error-600 dark:text-error-400" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-white dark:bg-gray-800">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Economias</p>
-                <h3 className="text-2xl font-bold text-warning-600 dark:text-warning-400 mt-1">{formatCurrency(summaryData.savings)}</h3>
-              </div>
-              <div className="h-12 w-12 bg-warning-100 dark:bg-warning-800/30 rounded-full flex items-center justify-center">
-                <Target className="h-6 w-6 text-warning-600 dark:text-warning-400" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Gráficos */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="bg-white dark:bg-gray-800">
-          <CardHeader>
-            <CardTitle>Despesas por Categoria</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={mockTransactionData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  >
-                    {mockTransactionData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    formatter={(value) => formatCurrency(value as number)} 
-                  />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-white dark:bg-gray-800">
-          <CardHeader>
-            <CardTitle>Receitas vs Despesas</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={mockMonthlyData}
-                  margin={{
-                    top: 5,
-                    right: 30,
-                    left: 20,
-                    bottom: 5,
-                  }}
-                >
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip formatter={(value) => formatCurrency(value as number)} />
-                  <Legend />
-                  <Bar dataKey="receitas" name="Receitas" fill="#2E7D32" />
-                  <Bar dataKey="despesas" name="Despesas" fill="#D32F2F" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
+      <DashboardHeader planName="Básico" />
+      <ResumoFinanceiro summaryData={summaryData} />
+      <GraficosDashboard transactionData={mockTransactionData} monthlyData={mockMonthlyData} />
+      <AlertasSection alerts={mockAlerts} />
+      {/* AlertasSection, CreditCardManager, LoanManager não são incluídos no plano Básico */}
     </div>
   );
 } 

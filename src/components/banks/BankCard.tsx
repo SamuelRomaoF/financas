@@ -1,26 +1,16 @@
-import { Building2, Clock, CreditCard, Eye, EyeOff, History, Pencil } from 'lucide-react';
+import { Clock, CreditCard, Eye, EyeOff, History, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { formatCurrency } from '../../utils/formatCurrency';
+import { getBankInitials } from '../../utils/strings';
+import type { BankAccount } from '../../types/finances';
 
 interface BankCardProps {
-  bank: {
-    id: string;
-    name: string;
-    type: 'corrente' | 'poupanca' | 'investimento';
-    accountNumber: string;
-    agency: string;
-    balance: number;
-    color: string;
-    transactions?: {
-      pending: number;
-      future: number;
-    };
-  };
-  onEdit: (bankId: string) => void;
+  bank: BankAccount;
   onViewTransactions: (bankId: string) => void;
+  onRemoveRequest: (bankId: string) => void;
 }
 
-export default function BankCard({ bank, onEdit, onViewTransactions }: BankCardProps) {
+export default function BankCard({ bank, onViewTransactions, onRemoveRequest }: BankCardProps) {
   const [showBalance, setShowBalance] = useState(true);
 
   const getAccountTypeLabel = (type: 'corrente' | 'poupanca' | 'investimento') => {
@@ -31,40 +21,49 @@ export default function BankCard({ bank, onEdit, onViewTransactions }: BankCardP
         return 'Conta Poupança';
       case 'investimento':
         return 'Conta Investimento';
+      default:
+        return type;
     }
   };
 
   return (
     <div className="relative group">
       <div 
-        className="p-6 rounded-xl transition-all duration-300 hover:scale-[1.02] cursor-pointer"
+        className="p-6 rounded-xl transition-all duration-300 hover:scale-[1.02] shadow-lg dark:shadow-gray-700/50"
         style={{
-          background: `linear-gradient(135deg, ${bank.color}22 0%, ${bank.color}44 100%)`,
-          borderLeft: `4px solid ${bank.color}`
+          backgroundColor: bank.color + '20',
+          borderColor: bank.color,
+          borderWidth: '1px 0 0 4px',
+          borderStyle: 'solid'
         }}
       >
         {/* Cabeçalho */}
         <div className="flex items-start justify-between mb-6">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <Building2 className="h-5 w-5" style={{ color: bank.color }} />
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                {bank.name}
-              </h3>
+          <div className="flex items-center gap-3">
+            <div 
+              className="h-10 w-10 rounded-full flex items-center justify-center text-white font-semibold text-sm"
+              style={{ backgroundColor: bank.color }}
+            >
+              {getBankInitials(bank.bankName)}
             </div>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              {getAccountTypeLabel(bank.type)}
-            </p>
+            <div>
+              <h3 className="text-lg font-bold text-gray-800 dark:text-white">
+                {bank.bankName}
+              </h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {getAccountTypeLabel(bank.accountType)}
+              </p>
+            </div>
           </div>
 
           {/* Ações */}
-          <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <button
-              onClick={() => onEdit(bank.id)}
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-              title="Editar conta"
+              onClick={() => onRemoveRequest(bank.id)}
+              className="p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-700/50 transition-colors"
+              title="Remover conta"
             >
-              <Pencil className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+              <Trash2 className="h-4 w-4 text-red-500 dark:text-red-400" />
             </button>
             <button
               onClick={() => onViewTransactions(bank.id)}
@@ -81,67 +80,59 @@ export default function BankCard({ bank, onEdit, onViewTransactions }: BankCardP
           {/* Saldo */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <span className="text-sm text-gray-600 dark:text-gray-400">
+              <span className="text-sm text-gray-500 dark:text-gray-400">
                 Saldo Disponível
               </span>
               <button
                 onClick={() => setShowBalance(!showBalance)}
-                className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700/50 transition-colors"
               >
                 {showBalance ? (
-                  <EyeOff className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                  <EyeOff className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                 ) : (
-                  <Eye className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                  <Eye className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                 )}
               </button>
             </div>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">
+            <div className={`text-2xl font-bold text-gray-800 dark:text-white ${!showBalance ? 'blur-sm' : ''}`}>
               {showBalance ? formatCurrency(bank.balance) : 'R$ ••••••'}
             </div>
           </div>
 
           {/* Dados da Conta */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
             <div>
-              <span className="text-sm text-gray-600 dark:text-gray-400 block mb-1">
-                Agência
-              </span>
-              <span className="text-gray-900 dark:text-white font-medium">
-                {bank.agency}
+              <span className="text-gray-500 dark:text-gray-400 block">Agência</span>
+              <span className="text-gray-700 dark:text-gray-300 font-medium">
+                {bank.agency || 'N/A'}
               </span>
             </div>
             <div>
-              <span className="text-sm text-gray-600 dark:text-gray-400 block mb-1">
-                Conta
-              </span>
-              <span className="text-gray-900 dark:text-white font-medium">
-                {bank.accountNumber}
+              <span className="text-gray-500 dark:text-gray-400 block">Conta</span>
+              <span className="text-gray-700 dark:text-gray-300 font-medium">
+                {bank.accountNumber || 'N/A'}
               </span>
             </div>
           </div>
 
           {/* Transações Pendentes e Futuras */}
-          {bank.transactions && (
-            <div className="grid grid-cols-2 gap-4 pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
-              <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+          {(bank.pendingTransactionsCount !== undefined || bank.scheduledTransactionsCount !== undefined) && (
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 pt-3 mt-3 border-t border-gray-200 dark:border-gray-700/50 text-sm">
+              <div className="flex items-center gap-1.5">
+                <Clock className="h-4 w-4 text-primary-500 dark:text-primary-400 flex-shrink-0" />
                 <div>
-                  <span className="text-sm text-gray-600 dark:text-gray-400 block">
-                    Pendentes
-                  </span>
-                  <span className="text-gray-900 dark:text-white font-medium">
-                    {bank.transactions.pending}
+                  <span className="text-gray-500 dark:text-gray-400 block">Pendentes</span>
+                  <span className="text-gray-700 dark:text-gray-300 font-medium">
+                    {bank.pendingTransactionsCount ?? 0}
                   </span>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <CreditCard className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+              <div className="flex items-center gap-1.5">
+                <CreditCard className="h-4 w-4 text-green-500 dark:text-green-400 flex-shrink-0" />
                 <div>
-                  <span className="text-sm text-gray-600 dark:text-gray-400 block">
-                    Agendadas
-                  </span>
-                  <span className="text-gray-900 dark:text-white font-medium">
-                    {bank.transactions.future}
+                  <span className="text-gray-500 dark:text-gray-400 block">Agendadas</span>
+                  <span className="text-gray-700 dark:text-gray-300 font-medium">
+                    {bank.scheduledTransactionsCount ?? 0}
                   </span>
                 </div>
               </div>

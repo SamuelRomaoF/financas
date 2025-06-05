@@ -1,5 +1,5 @@
 import { Toaster } from 'react-hot-toast';
-import { Route, Routes } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import AppLayout from './components/layout/AppLayout';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import AccountPage from './pages/account/AccountPage';
@@ -8,7 +8,6 @@ import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
 import BanksPage from './pages/banks/BanksPage';
 import CategoriesPage from './pages/categories/CategoriesPage';
-import DashboardLoader from './pages/dashboard/DashboardLoader';
 import GoalsPage from './pages/goals/GoalsPage';
 import InvestmentsPage from './pages/Investimentos';
 import LandingPage from './pages/landing/LandingPage';
@@ -20,11 +19,13 @@ import WalletPage from './pages/wallet/WalletPage';
 import WhatsAppConfigPage from './pages/whatsapp/WhatsAppConfigPage';
 import RestrictedFeatureRoute from './components/routes/RestrictedFeatureRoute';
 import { SubscriptionPlan } from './hooks/useSubscription';
+import { BankAccountProvider } from './contexts/BankAccountContext';
+import DashboardPage from './pages/dashboard/DashboardPage';
 
 export default function App() {
   console.log('App.tsx: Componente App RENDERIZANDO');
   return (
-    <>
+    <BankAccountProvider>
       <Toaster 
         position="top-right"
         toastOptions={{
@@ -49,39 +50,29 @@ export default function App() {
       />
       
       <Routes>
-        {/* Página inicial (Landing Page) */}
         <Route path="/" element={<LandingPage />} />
-        
-        {/* Rotas públicas */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
-        
-        {/* Rotas protegidas */}
         <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-          <Route path="/dashboard" element={<DashboardLoader />} />
+          <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/transacoes" element={<TransactionsPage />} />
           <Route path="/planos" element={<PlansPage />} />
           <Route path="/configuracoes" element={<SettingsPage />} />
           <Route path="/conta" element={<AccountPage />} />
           <Route path="/relatorios" element={<ReportsPage />} />
-          {/* Rotas agora permitidas para todos os planos logados (incluindo free) */}
           <Route path="/categorias" element={<CategoriesPage />} />
           <Route path="/whatsapp" element={<WhatsAppConfigPage />} />
-
-          {/* Rotas APENAS PREMIUM */}
-          <Route element={<RestrictedFeatureRoute allowedPlans={['premium'] as SubscriptionPlan[]} />}>
-            <Route path="/bancos" element={<BanksPage />} />
-            <Route path="/carteira" element={<WalletPage />} />
-            <Route path="/investimentos" element={<InvestmentsPage />} />
-          </Route>
-
-          {/* Rotas restritas para BASIC e PREMIUM */}
           <Route element={<RestrictedFeatureRoute allowedPlans={['basic', 'premium'] as SubscriptionPlan[]} />}>
             <Route path="/metas" element={<GoalsPage />} />
             <Route path="/alertas" element={<AlertsPage />} />
+            <Route path="/carteira" element={<WalletPage />} />
+          </Route>
+          <Route element={<RestrictedFeatureRoute allowedPlans={['premium'] as SubscriptionPlan[]} />}>
+            <Route path="/bancos" element={<BanksPage />} />
+            <Route path="/investimentos" element={<InvestmentsPage />} />
           </Route>
         </Route>
       </Routes>
-    </>
+    </BankAccountProvider>
   );
 }
