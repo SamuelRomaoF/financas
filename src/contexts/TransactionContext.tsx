@@ -22,113 +22,164 @@ export interface Transaction {
   category_id: string;
 }
 
+interface TransactionFilters {
+  searchTerm: string;
+  type: 'all' | 'income' | 'expense';
+}
+
 interface TransactionContextData {
   transactions: Transaction[];
   isLoading: boolean;
-  fetchTransactions: () => Promise<void>;
-  addTransaction: (transaction: Omit<Transaction, 'id' | 'user_id'>) => Promise<{ error: any }>;
+  hasMore: boolean;
+  loadTransactions: (filters: TransactionFilters) => Promise<void>;
+  loadMoreTransactions: () => Promise<void>;
+  addTransaction: (transaction: Omit<Transaction, 'id' | 'user_id' | 'category'>) => Promise<{ error: any }>;
+  updateTransaction: (id: string, updates: Omit<Transaction, 'id' | 'user_id' | 'category'>) => Promise<{ error: any }>;
   removeTransaction: (id: string) => Promise<{ error: any }>;
 }
 
 const TransactionContext = createContext<TransactionContextData | undefined>(undefined);
 
+const TRANSACTIONS_PER_PAGE = 20;
+
 export const TransactionProvider = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasMore, setHasMore] = useState(false);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [currentFilters, setCurrentFilters] = useState<TransactionFilters>({
+    searchTerm: '',
+    type: 'all',
+  });
 
-  const fetchTransactions = useCallback(async () => {
-    if (!user) return;
+  const internalFetch = useCallback(async (filters: TransactionFilters, page: number) => {
+    if (!user) return { data: [], error: null };
 
+    let query = supabase
+      .from('transactions')
+      .select(`
+        id, description, amount, date, type, user_id, category_id,
+        categories (name)
+      `)
+      .eq('user_id', user.id)
+      .order('date', { ascending: false })
+      .range(page * TRANSACTIONS_PER_PAGE, (page + 1) * TRANSACTIONS_PER_PAGE - 1);
+
+    if (filters.searchTerm) {
+      query = query.ilike('description', `%${filters.searchTerm}%`);
+    }
+    if (filters.type !== 'all') {
+      query = query.eq('type', filters.type);
+    }
+
+    return await query;
+  }, [user]);
+
+  const formatTransactions = (data: any[]): Transaction[] => {
+    return data.map(t => ({
+      ...t,
+      id: t.id!,
+      userId: t.user_id!,
+      type: t.type as 'income' | 'expense',
+      category: t.categories?.name || 'Sem Categoria',
+      category_id: t.category_id,
+    }));
+  };
+
+  const loadTransactions = useCallback(async (filters: TransactionFilters) => {
+    setCurrentFilters(filters);
+    setCurrentPage(0);
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('transactions')
-        .select(`
-          id,
-          description,
-          amount,
-          date,
-          type,
-          user_id,
-          category_id, 
-          categories (
-            name
-          )
-        `)
-        .eq('user_id', user.id)
-        .order('date', { ascending: false });
+      const { data, error } = await internalFetch(filters, 0);
+      if (error) throw error;
 
-      if (error) {
-        throw error;
-      }
-      
-      const formattedData = data?.map(t => ({
-        ...t,
-        id: t.id!,
-        userId: t.user_id!,
-        type: t.type as 'income' | 'expense',
-        category: t.categories?.name || 'Sem Categoria',
-        category_id: t.category_id,
-      })) || [];
-
-      setTransactions(formattedData as Transaction[]);
-    } catch (error: any) {
+      const formatted = formatTransactions(data || []);
+      setTransactions(formatted);
+      setHasMore(formatted.length === TRANSACTIONS_PER_PAGE);
+    } catch (error) {
       console.error('Erro ao buscar transações:', error);
+      setTransactions([]);
     } finally {
       setIsLoading(false);
     }
-  }, [user]);
+  }, [internalFetch]);
+  
+  const loadMoreTransactions = useCallback(async () => {
+    if (isLoading || !hasMore) return;
+
+    const nextPage = currentPage + 1;
+    setIsLoading(true); // Re-using isLoading for simplicity, could be isLoadingMore
+    try {
+      const { data, error } = await internalFetch(currentFilters, nextPage);
+      if (error) throw error;
+      
+      const formatted = formatTransactions(data || []);
+      setTransactions(prev => [...prev, ...formatted]);
+      setHasMore(formatted.length === TRANSACTIONS_PER_PAGE);
+      setCurrentPage(nextPage);
+    } catch (error) {
+      console.error('Erro ao carregar mais transações:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [internalFetch, currentFilters, currentPage, hasMore, isLoading]);
 
   useEffect(() => {
-    fetchTransactions();
-  }, [fetchTransactions]);
+    loadTransactions({ searchTerm: '', type: 'all' });
+  }, [loadTransactions]);
   
-  const addTransaction = async (transaction: Omit<Transaction, 'id' | 'user_id'>) => {
+  const addTransaction = async (transaction: Omit<Transaction, 'id' | 'user_id' | 'category'>) => {
     if (!user) {
       const err = new Error("Usuário não autenticado");
-      console.error(err.message);
       return { error: err };
     }
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('transactions')
-      .insert([{ 
-        description: transaction.description, 
-        amount: transaction.amount,
-        date: transaction.date,
-        type: transaction.type,
-        user_id: user.id 
-      }])
-      .select()
-      .single();
+      .insert([{ ...transaction, user_id: user.id }]);
 
     if (error) {
       console.error('Erro ao adicionar transação:', error);
       return { error };
     }
     
-    await fetchTransactions();
+    await loadTransactions(currentFilters);
+    return { error: null };
+  };
+
+  const updateTransaction = async (id: string, updates: Omit<Transaction, 'id' | 'user_id' | 'category'>) => {
+    const { error } = await supabase
+      .from('transactions')
+      .update(updates)
+      .eq('id', id);
+
+    if (error) {
+      console.error('Erro ao atualizar transação:', error);
+      return { error };
+    }
+
+    await loadTransactions(currentFilters);
     return { error: null };
   };
 
   const removeTransaction = async (id: string) => {
     const { error } = await supabase
-        .from('transactions')
-        .delete()
-        .eq('id', id);
+      .from('transactions')
+      .delete()
+      .eq('id', id);
 
     if (error) {
-        console.error('Erro ao remover transação:', error);
-        return { error };
+      console.error('Erro ao remover transação:', error);
+      return { error };
     }
     
     setTransactions(prev => prev.filter(t => t.id !== id));
     return { error: null };
   };
 
-
   return (
-    <TransactionContext.Provider value={{ transactions, isLoading, fetchTransactions, addTransaction, removeTransaction }}>
+    <TransactionContext.Provider value={{ transactions, isLoading, hasMore, loadTransactions, loadMoreTransactions, addTransaction, updateTransaction, removeTransaction }}>
       {children}
     </TransactionContext.Provider>
   );

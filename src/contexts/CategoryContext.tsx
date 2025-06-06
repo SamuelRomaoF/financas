@@ -21,8 +21,8 @@ export interface Category {
 interface CategoryContextData {
   categories: Category[];
   isLoading: boolean;
-  addCategory: (category: Omit<Category, 'id' | 'user_id'>) => Promise<{ error: any }>;
-  updateCategory: (id: string, updates: Partial<Omit<Category, 'id' | 'user_id'>>) => Promise<{ error: any }>;
+  addCategory: (category: { name: string; type: 'income' | 'expense' }) => Promise<{ error: any }>;
+  updateCategory: (id: string, updates: { name: string; type: 'income' | 'expense' }) => Promise<{ error: any }>;
   removeCategory: (id: string) => Promise<{ error: any }>;
 }
 
@@ -38,11 +38,11 @@ export const CategoryProvider = ({ children }: { children: ReactNode }) => {
 
     setIsLoading(true);
     try {
-      // @ts-ignore
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .rpc('get_categories_with_stats', { p_user_id: user.id });
 
       if (error) {
+        console.error('Detalhes do erro RPC ao buscar categorias:', JSON.stringify(error, null, 2));
         throw error;
       }
       
@@ -60,7 +60,7 @@ export const CategoryProvider = ({ children }: { children: ReactNode }) => {
 
       setCategories(formattedData as Category[]);
     } catch (error: any) {
-      console.error('Erro ao buscar categorias:', error);
+      console.error('Erro no bloco catch ao buscar categorias:', error.message);
     } finally {
       setIsLoading(false);
     }
@@ -70,7 +70,7 @@ export const CategoryProvider = ({ children }: { children: ReactNode }) => {
     fetchCategories();
   }, [fetchCategories]);
   
-  const addCategory = async (category: Omit<Category, 'id' | 'user_id'>) => {
+  const addCategory = async (category: { name: string; type: 'income' | 'expense' }) => {
     if (!user) {
       const err = new Error("Usuário não autenticado");
       return { error: err };
@@ -88,7 +88,7 @@ export const CategoryProvider = ({ children }: { children: ReactNode }) => {
     return { error: null };
   };
 
-  const updateCategory = async (id: string, updates: Partial<Omit<Category, 'id' | 'user_id'>>) => {
+  const updateCategory = async (id: string, updates: { name: string; type: 'income' | 'expense' }) => {
     const { error } = await supabase
       .from('categories')
       .update(updates)

@@ -1,19 +1,13 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { Plus, Search, Edit2, Trash2, AlertCircle } from 'lucide-react';
 import { useCategories, Category } from '../../contexts/CategoryContext';
-import { useTransactions } from '../../contexts/TransactionContext';
 import { CATEGORY_COLORS } from '../../utils/categoryColors';
 import { formatCurrency } from '../../utils/formatCurrency';
 import NewCategoryModal from '../../components/categories/NewCategoryModal';
-
-type CategoryView = Category & {
-  transactionCount: number;
-  totalAmount: number;
-};
 
 export default function CategoriesPage() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -23,36 +17,15 @@ export default function CategoriesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [categoryToEdit, setCategoryToEdit] = useState<Category | null>(null);
 
-  const { categories, isLoading: isLoadingCategories, addCategory, updateCategory, removeCategory } = useCategories();
-  const { transactions, isLoading: isLoadingTransactions } = useTransactions();
+  const { categories, isLoading, addCategory, updateCategory, removeCategory } = useCategories();
 
-  const enrichedCategories = useMemo((): CategoryView[] => {
-    const transactionStats = transactions.reduce((acc, t) => {
-      const categoryId = t.category_id;
-      if (!categoryId) return acc;
-
-      if (!acc[categoryId]) {
-        acc[categoryId] = { count: 0, total: 0 };
-      }
-      acc[categoryId].count++;
-      acc[categoryId].total += t.amount;
-      return acc;
-    }, {} as Record<string, { count: number, total: number }>);
-
-    return categories.map(cat => ({
-      ...cat,
-      transactionCount: transactionStats[cat.id]?.count || 0,
-      totalAmount: transactionStats[cat.id]?.total || 0,
-    }));
-  }, [categories, transactions]);
-
-  const filteredCategories = enrichedCategories.filter(category => {
+  const filteredCategories = categories.filter(category => {
     const matchesSearch = category.name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = selectedType === 'all' || category.type === selectedType;
     return matchesSearch && matchesType;
   });
 
-  const handleSaveCategory = async (data: Omit<Category, 'id' | 'user_id'>, id?: string) => {
+  const handleSaveCategory = async (data: { name: string; type: 'income' | 'expense' }, id?: string) => {
     const action = id ? updateCategory(id, data) : addCategory(data);
     const toastId = toast.loading(id ? 'Atualizando categoria...' : 'Adicionando categoria...');
 
@@ -65,6 +38,9 @@ export default function CategoriesPage() {
       setIsModalOpen(false);
       setCategoryToEdit(null);
     }
+
+    setShowDeleteModal(false);
+    setCategoryToDelete(null);
   };
   
   const handleAddNewClick = () => {
@@ -97,8 +73,6 @@ export default function CategoriesPage() {
     setShowDeleteModal(false);
     setCategoryToDelete(null);
   };
-
-  const isLoading = isLoadingCategories || isLoadingTransactions;
 
   if (isLoading) {
     return (
@@ -207,7 +181,7 @@ export default function CategoriesPage() {
                 <h3 className="ml-3 text-lg font-medium text-gray-900 dark:text-white">Confirmar exclusão</h3>
               </div>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                Tem certeza que deseja excluir a categoria "{categoryToDelete?.name}"? Esta ação não pode ser desfeita.
+                Tem certeza que deseja excluir a categoria "{categoryToDelete?.name}"? Todas as transações associadas também serão removidas. Esta ação não pode ser desfeita.
               </p>
               <div className="mt-6 flex justify-end gap-3">
                 <Button variant="outline" onClick={() => setShowDeleteModal(false)}>Cancelar</Button>

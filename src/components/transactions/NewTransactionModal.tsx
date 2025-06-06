@@ -1,17 +1,19 @@
 import { ArrowDownLeft, ArrowUpRight, X } from 'lucide-react';
-import { ChangeEvent, useState, useMemo } from 'react';
+import { ChangeEvent, useState } from 'react';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 import Select from '../ui/Select';
 import { useBankAccounts } from '../../contexts/BankAccountContext';
 import { Transaction } from '../../contexts/TransactionContext';
+import { Category } from '../../contexts/CategoryContext';
+import { useSubscription } from '../../hooks/useSubscription';
 
 interface NewTransactionModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: Omit<Transaction, 'id' | 'user_id'>) => void;
-  // Receber categorias dinamicamente
-  categories: string[]; 
+  onSubmit: (data: Omit<Transaction, 'id' | 'user_id' | 'category'>) => void;
+  categories: Category[]; 
+  transactionToEdit?: Transaction | null;
 }
 
 export default function NewTransactionModal({
@@ -19,11 +21,12 @@ export default function NewTransactionModal({
   onClose,
   onSubmit,
   categories,
+  transactionToEdit,
 }: NewTransactionModalProps) {
-  const [type, setType] = useState<'income' | 'expense'>('income');
+  const [type, setType] = useState<'income' | 'expense'>('expense');
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
-  const [category, setCategory] = useState('');
+  const [categoryId, setCategoryId] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [bankAccountId, setBankAccountId] = useState<string | undefined>(undefined);
   
@@ -32,26 +35,50 @@ export default function NewTransactionModal({
   // const [bankAccountId, setBankAccountId] = useState('');
   
   const { accounts } = useBankAccounts();
+  const { subscription } = useSubscription();
+  const isFreePlan = subscription?.plan === 'free';
+  const isEditMode = !!transactionToEdit;
+
+  useState(() => {
+    if (isEditMode && transactionToEdit) {
+      setType(transactionToEdit.type);
+      setDescription(transactionToEdit.description);
+      setAmount(String(transactionToEdit.amount));
+      setCategoryId(transactionToEdit.category_id);
+      setDate(new Date(transactionToEdit.date).toISOString().split('T')[0]);
+      setBankAccountId(transactionToEdit.bank_id);
+    }
+  });
 
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!categoryId) {
+      alert("Por favor, selecione uma categoria.");
+      return;
+    }
+
+    if (type === 'expense' && !isFreePlan && !bankAccountId) {
+      alert("Por favor, selecione uma conta para pagar a despesa.");
+      return;
+    }
+
     onSubmit({
       type,
       description,
       amount: Number(amount),
-      category,
       date,
       bank_id: bankAccountId,
+      category_id: categoryId,
     });
 
     // Limpa o formulário
-    setType('income');
+    setType('expense');
     setDescription('');
     setAmount('');
-    setCategory('');
+    setCategoryId('');
     setDate(new Date().toISOString().split('T')[0]);
     setBankAccountId(undefined);
     onClose();
@@ -66,7 +93,7 @@ export default function NewTransactionModal({
   };
 
   const handleCategoryChange = (e: ChangeEvent<HTMLSelectElement>) => {
-    setCategory(e.target.value);
+    setCategoryId(e.target.value);
   };
 
   const handleDateChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -82,7 +109,7 @@ export default function NewTransactionModal({
           {/* Cabeçalho */}
           <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-              Nova Transação
+              {isEditMode ? 'Editar Transação' : 'Nova Transação'}
             </h2>
             <button
               onClick={onClose}
@@ -179,21 +206,23 @@ export default function NewTransactionModal({
               </label>
               <Select
                 id="category"
-                value={category}
+                value={categoryId}
                 onChange={handleCategoryChange}
                 required
               >
                 <option value="">Selecione uma categoria</option>
-                {categories.map(cat => (
-                  <option key={cat} value={cat}>
-                    {cat}
-                  </option>
-                ))}
+                {categories
+                  .filter(c => c.type === type)
+                  .map(cat => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))}
               </Select>
             </div>
 
             {/* Conta Bancária (para despesas) */}
-            {type === 'expense' && (
+            {type === 'expense' && !isFreePlan && (
               <div className="space-y-2">
                 <label htmlFor="bankAccountId" className="text-sm font-medium text-gray-700 dark:text-gray-300">
                   Pagar com
@@ -202,7 +231,7 @@ export default function NewTransactionModal({
                   id="bankAccountId"
                   value={bankAccountId || ''}
                   onChange={(e) => setBankAccountId(e.target.value)}
-                  required
+                  required={!isFreePlan}
                 >
                   <option value="">Selecione uma conta</option>
                   {accounts.map(acc => (
@@ -244,7 +273,7 @@ export default function NewTransactionModal({
                 type="submit"
                 variant="primary"
               >
-                Adicionar Transação
+                {isEditMode ? 'Salvar Alterações' : 'Adicionar Transação'}
               </Button>
             </div>
           </form>
