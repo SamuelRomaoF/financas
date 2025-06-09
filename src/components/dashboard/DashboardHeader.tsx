@@ -4,6 +4,9 @@ import { toast } from 'react-hot-toast';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import Button from '../ui/Button';
+import NewTransactionModal from '../transactions/NewTransactionModal';
+import { useCategories } from '../../contexts/CategoryContext';
+import { useTransactions } from '../../contexts/TransactionContext';
 
 interface DashboardHeaderProps {
   planName: string;
@@ -12,6 +15,9 @@ interface DashboardHeaderProps {
 export default function DashboardHeader({ planName }: DashboardHeaderProps) {
   const { user } = useAuth();
   const [resetting, setResetting] = useState(false);
+  const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
+  const { categories } = useCategories();
+  const { addTransaction } = useTransactions();
 
   const handleForceBasicPlan = async () => {
     if (!user) return;
@@ -53,6 +59,23 @@ export default function DashboardHeader({ planName }: DashboardHeaderProps) {
     }
   };
 
+  const handleOpenTransactionModal = () => {
+    setIsTransactionModalOpen(true);
+  };
+
+  const handleCloseTransactionModal = () => {
+    setIsTransactionModalOpen(false);
+  };
+
+  const handleTransactionSubmit = async (transactionData: any) => {
+    const result = await addTransaction(transactionData);
+    if (!result.error) {
+      toast.success('Transação adicionada com sucesso!');
+    } else {
+      toast.error('Erro ao adicionar transação. Tente novamente.');
+    }
+  };
+
   return (
     <div className="flex justify-between items-center">
       <div className="flex items-center space-x-4">
@@ -69,10 +92,24 @@ export default function DashboardHeader({ planName }: DashboardHeaderProps) {
           <RefreshCcw className="h-4 w-4" />
         </Button>
       </div>
-      <Button variant="primary" className="flex items-center">
+      <Button 
+        variant="primary" 
+        className="flex items-center"
+        onClick={handleOpenTransactionModal}
+      >
         <PlusCircle className="h-4 w-4 mr-2" />
         Nova Transação
       </Button>
+
+      {isTransactionModalOpen && (
+        <NewTransactionModal
+          isOpen={isTransactionModalOpen}
+          onClose={handleCloseTransactionModal}
+          onSubmit={handleTransactionSubmit}
+          categories={categories}
+          transactionToEdit={null}
+        />
+      )}
     </div>
   );
 } 

@@ -5,6 +5,11 @@ export interface BankAccount {
   accountType: 'checking' | 'savings' | 'investment';
   balance: number;
   currency: string;
+  color?: string;
+  agency?: string;
+  accountNumber?: string;
+  pendingTransactionsCount?: number;
+  scheduledTransactionsCount?: number;
 }
 
 export interface SaveableBankAccountData {
@@ -13,6 +18,9 @@ export interface SaveableBankAccountData {
   balance: number;
   currency: string;
   userId: string;
+  color?: string;
+  agency?: string;
+  accountNumber?: string;
 }
 
 // Poderíamos adicionar outros tipos financeiros aqui no futuro,

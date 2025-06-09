@@ -7,10 +7,18 @@ import Label from '../ui/Label';
 interface NewInvestmentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: InvestmentFormData) => void;
+  onSubmit: (data: InvestmentSubmitData) => void;
 }
 
 interface InvestmentFormData {
+  type: 'renda-fixa' | 'renda-variavel' | 'cripto';
+  name: string;
+  amount: string;
+  expectedReturn?: string;
+  details?: string;
+}
+
+interface InvestmentSubmitData {
   type: 'renda-fixa' | 'renda-variavel' | 'cripto';
   name: string;
   amount: number;
@@ -22,15 +30,48 @@ export default function NewInvestmentModal({ isOpen, onClose, onSubmit }: NewInv
   const [formData, setFormData] = useState<InvestmentFormData>({
     type: 'renda-fixa',
     name: '',
-    amount: 0,
-    expectedReturn: 0,
+    amount: '',
+    expectedReturn: '',
     details: ''
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(formData);
+    
+    let amount = formData.amount.replace(',', '.');
+    amount = amount.replace(/\.(?=.*\.)/g, '');
+    
+    let expectedReturn = formData.expectedReturn?.replace(',', '.') || '0';
+    expectedReturn = expectedReturn.replace(/\.(?=.*\.)/g, '');
+    
+    onSubmit({
+      type: formData.type,
+      name: formData.name,
+      amount: parseFloat(amount || '0'),
+      expectedReturn: parseFloat(expectedReturn || '0'),
+      details: formData.details
+    });
     onClose();
+  };
+
+  const validateNumericInput = (value: string, fieldName: 'amount' | 'expectedReturn') => {
+    const hasComma = value.includes(',');
+    const hasDot = value.includes('.');
+    
+    if ((hasComma && value.endsWith('.')) || 
+        (hasDot && value.endsWith(','))) {
+      return;
+    }
+    
+    const commaCount = (value.match(/,/g) || []).length;
+    const dotCount = (value.match(/\./g) || []).length;
+    
+    if ((commaCount > 1) || (dotCount > 1)) {
+      return;
+    }
+    
+    const sanitizedValue = value.replace(/[^\d.,]/g, '');
+    setFormData({ ...formData, [fieldName]: sanitizedValue });
   };
 
   if (!isOpen) return null;
@@ -84,10 +125,7 @@ export default function NewInvestmentModal({ isOpen, onClose, onSubmit }: NewInv
               id="amount"
               placeholder="R$ 0,00"
               value={formData.amount}
-              onChange={(e) => {
-                const value = e.target.value.replace(/\D/g, '');
-                setFormData({ ...formData, amount: value === '' ? 0 : parseFloat(value) });
-              }}
+              onChange={(e) => validateNumericInput(e.target.value, 'amount')}
               required
             />
           </div>
@@ -102,10 +140,7 @@ export default function NewInvestmentModal({ isOpen, onClose, onSubmit }: NewInv
               id="expectedReturn"
               placeholder="0%"
               value={formData.expectedReturn}
-              onChange={(e) => {
-                const value = e.target.value.replace(/[^\d.]/g, '');
-                setFormData({ ...formData, expectedReturn: value === '' ? 0 : parseFloat(value) });
-              }}
+              onChange={(e) => validateNumericInput(e.target.value, 'expectedReturn')}
             />
           </div>
 

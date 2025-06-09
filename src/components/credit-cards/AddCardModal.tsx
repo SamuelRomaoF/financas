@@ -23,6 +23,22 @@ const predefinedCardsOptions = [
   { name: 'Outro', color: '#6B7280', brand: 'outro' as const }
 ];
 
+// Cores predefinidas para seleção quando "Outro" é escolhido
+const predefinedColors = [
+  '#820AD1', // Roxo (Nubank)
+  '#FF7A00', // Laranja (Inter)
+  '#EC7000', // Laranja (Itaú)
+  '#CC092F', // Vermelho (Bradesco)
+  '#EC0000', // Vermelho (Santander)
+  '#0033A0', // Azul (BB)
+  '#00A868', // Verde
+  '#00B2FF', // Azul claro
+  '#FFD700', // Dourado
+  '#4B0082', // Índigo
+  '#000000', // Preto
+  '#6B7280', // Cinza
+];
+
 // Marcas válidas para o select quando "Outro" é escolhido.
 const validBrandsForOtherSelection: Array<Exclude<SaveableCreditCardData['brand'], 'outro'> > = [
     'visa', 'mastercard', 'elo', 'amex', 'hipercard', 'diners'
@@ -36,6 +52,7 @@ export default function AddCardModal({ isOpen, onClose, onSaveCard, cardToEdit }
   const [dueDate, setDueDate] = useState<number | '' >('');
   const [closingDate, setClosingDate] = useState<number | '' >('');
   const [selectedBrand, setSelectedBrand] = useState<SaveableCreditCardData['brand']>(predefinedCardsOptions[0].brand);
+  const [customColor, setCustomColor] = useState('#6B7280');
 
   // Preencher o formulário com os dados do cartão a ser editado
   useEffect(() => {
@@ -50,6 +67,7 @@ export default function AddCardModal({ isOpen, onClose, onSaveCard, cardToEdit }
       } else {
         setSelectedPredefinedName('Outro');
         setCustomCardName(cardToEdit.name);
+        setCustomColor(cardToEdit.color);
       }
       
       setLastFourDigits(cardToEdit.lastFourDigits || '');
@@ -66,6 +84,7 @@ export default function AddCardModal({ isOpen, onClose, onSaveCard, cardToEdit }
       setDueDate('');
       setClosingDate('');
       setSelectedBrand(predefinedCardsOptions[0].brand);
+      setCustomColor('#6B7280');
     }
   }, [cardToEdit, isOpen]);
 
@@ -101,7 +120,7 @@ export default function AddCardModal({ isOpen, onClose, onSaveCard, cardToEdit }
       limit: Number(limit),
       dueDate: Number(dueDate),
       closingDate: Number(closingDate),
-      color: predefinedCardsOptions.find(p => p.name === selectedPredefinedName)?.color || '#6B7280',
+      color: selectedPredefinedName === 'Outro' ? customColor : predefinedCardsOptions.find(p => p.name === selectedPredefinedName)?.color || '#6B7280',
       brand: brandToSave,
     };
     onSaveCard(cardDataToSave);
@@ -147,28 +166,76 @@ export default function AddCardModal({ isOpen, onClose, onSaveCard, cardToEdit }
           </div>
 
           {selectedPredefinedName === 'Outro' && (
-            <div>
-              <label htmlFor="customCardName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nome do Cartão</label>
-              <Input 
-                id="customCardName" 
-                value={customCardName} 
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setCustomCardName(e.target.value)} 
-                placeholder="Ex: Cartão XP Visa Infinite"
-                required={selectedPredefinedName === 'Outro'}
-              />
-              <label htmlFor="customCardBrand" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 mt-2">Bandeira</label>
-              <Select 
-                id="customCardBrand"
-                value={selectedBrand === 'outro' ? '' : selectedBrand} 
-                onChange={(e: ChangeEvent<HTMLSelectElement>) => setSelectedBrand(e.target.value as SaveableCreditCardData['brand'])} 
-                required={selectedPredefinedName === 'Outro'}
-              >
-                <option value="" disabled>Selecione a bandeira</option>
-                {validBrandsForOtherSelection.map(brand => (
-                    <option key={brand} value={brand}>{brand.charAt(0).toUpperCase() + brand.slice(1)}</option>
-                ))}
-              </Select>
-            </div>
+            <>
+              <div>
+                <label htmlFor="customCardName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nome do Cartão</label>
+                <Input 
+                  id="customCardName" 
+                  value={customCardName} 
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setCustomCardName(e.target.value)} 
+                  placeholder="Ex: Cartão XP Visa Infinite"
+                  required={selectedPredefinedName === 'Outro'}
+                />
+                <label htmlFor="customCardBrand" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 mt-2">Bandeira</label>
+                <Select 
+                  id="customCardBrand"
+                  value={selectedBrand === 'outro' ? '' : selectedBrand} 
+                  onChange={(e: ChangeEvent<HTMLSelectElement>) => setSelectedBrand(e.target.value as SaveableCreditCardData['brand'])} 
+                  required={selectedPredefinedName === 'Outro'}
+                >
+                  <option value="" disabled>Selecione a bandeira</option>
+                  {validBrandsForOtherSelection.map(brand => (
+                      <option key={brand} value={brand}>{brand.charAt(0).toUpperCase() + brand.slice(1)}</option>
+                  ))}
+                </Select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cor do Cartão</label>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {predefinedColors.map(color => (
+                    <button
+                      key={color}
+                      type="button"
+                      className={`w-8 h-8 rounded-full border-2 ${customColor === color ? 'border-blue-500' : 'border-transparent'}`}
+                      style={{ backgroundColor: color }}
+                      onClick={() => setCustomColor(color)}
+                      aria-label={`Selecionar cor ${color}`}
+                    />
+                  ))}
+                </div>
+                <div className="flex items-center gap-2">
+                  <label htmlFor="customColorInput" className="text-xs text-gray-500 dark:text-gray-400">
+                    Ou digite um código hexadecimal:
+                  </label>
+                  <input
+                    id="customColorInput"
+                    type="color"
+                    value={customColor}
+                    onChange={(e) => setCustomColor(e.target.value)}
+                    className="w-8 h-8 p-0 border-0 rounded cursor-pointer"
+                  />
+                  <input
+                    type="text"
+                    value={customColor}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (/^#([0-9A-F]{3}){1,2}$/i.test(value)) {
+                        setCustomColor(value);
+                      }
+                    }}
+                    className="w-24 px-2 py-1 text-sm border rounded"
+                    placeholder="#RRGGBB"
+                  />
+                </div>
+                <div className="mt-2 p-4 rounded-lg" style={{ backgroundColor: customColor + '20', borderLeft: `4px solid ${customColor}` }}>
+                  <div className="flex items-center">
+                    <div className="w-10 h-6 rounded-md" style={{ backgroundColor: customColor }}></div>
+                    <span className="ml-2 text-sm font-medium">Prévia da cor selecionada</span>
+                  </div>
+                </div>
+              </div>
+            </>
           )}
 
           <div>

@@ -8,6 +8,9 @@ import { supabase } from '../../lib/supabase';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 import Select from '../ui/Select';
+import { useBankAccounts } from '../../contexts/BankAccountContext';
+import Label from '../ui/Label';
+import { formatCurrency } from '../../utils/formatCurrency';
 
 interface CreditCard {
   id: string;
@@ -38,11 +41,22 @@ export default function NewTransactionModal({
   const [selectedCardId, setSelectedCardId] = useState<string>('');
   const [creditCards, setCreditCards] = useState<CreditCard[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'pix'>('card');
+  const { accounts } = useBankAccounts();
   
   const { user } = useAuth();
   const { subscription } = useSubscription();
   const isFreePlan = subscription?.plan === 'free';
   const isEditMode = !!transactionToEdit;
+
+  // Adicionar bankId ao formState
+  const [formState, setFormState] = useState({
+    description: '',
+    amount: '',
+    type: 'expense' as 'income' | 'expense',
+    date: new Date().toISOString().split('T')[0],
+    category_id: '',
+    bankId: '', // Adicionando o bankId ao estado do formulário
+  });
 
   // Carregar cartões de crédito
   useEffect(() => {
@@ -95,14 +109,40 @@ export default function NewTransactionModal({
       return;
     }
 
-    onSubmit({
+    // Definir o bank_id com base no método de pagamento e seleção
+    let bankId = undefined;
+    if (paymentMethod === 'card') {
+      // Para cartão, usamos o ID do cartão selecionado
+      bankId = selectedCardId;
+    } else {
+      // Para outros métodos (PIX), usamos a conta bancária selecionada
+      bankId = selectedCardId || undefined;
+      
+      // Verificar se uma conta bancária foi selecionada para métodos que não são cartão
+      if (!bankId && paymentMethod === 'pix') {
+        alert("Por favor, selecione uma conta bancária para transações via PIX.");
+        return;
+      }
+    }
+
+    // Converter o valor para número, tratando tanto vírgula quanto ponto
+    let numericAmount = amount;
+    // Substitui a vírgula por ponto para cálculos
+    numericAmount = numericAmount.replace(',', '.');
+    // Remove pontos extras (separadores de milhar)
+    numericAmount = numericAmount.replace(/\.(?=.*\.)/g, '');
+    
+    const transactionData = {
       type,
       description,
-      amount: Number(amount),
+      amount: parseFloat(numericAmount),
       date,
-      bank_id: paymentMethod === 'card' ? selectedCardId || undefined : undefined,
+      bank_id: bankId,
       category_id: categoryId,
-    });
+    };
+
+    console.log('Enviando transação:', transactionData); // Log para debug
+    onSubmit(transactionData);
 
     // Limpa o formulário
     setType('expense');
@@ -219,8 +259,30 @@ export default function NewTransactionModal({
                   className="pl-10"
                   value={amount}
                   onChange={(e) => {
-                    const value = e.target.value.replace(/\D/g, '');
-                    setAmount(value);
+                    const value = e.target.value;
+                    // Validação para permitir apenas números e um único separador decimal (vírgula ou ponto)
+                    const hasComma = value.includes(',');
+                    const hasDot = value.includes('.');
+                    
+                    // Verifica se está tentando adicionar um separador incompatível
+                    if ((hasComma && e.target.value.endsWith('.')) || 
+                        (hasDot && e.target.value.endsWith(','))) {
+                      // Não permite adicionar um tipo diferente de separador
+                      return;
+                    }
+                    
+                    // Conta o número de separadores decimais
+                    const commaCount = (value.match(/,/g) || []).length;
+                    const dotCount = (value.match(/\./g) || []).length;
+                    
+                    // Se já existe mais de um separador do mesmo tipo, não permite adicionar mais
+                    if ((commaCount > 1) || (dotCount > 1)) {
+                      return;
+                    }
+                    
+                    // Permite apenas números e um único separador decimal
+                    const sanitizedValue = value.replace(/[^\d.,]/g, '');
+                    setAmount(sanitizedValue);
                   }}
                   required
                 />
@@ -312,6 +374,31 @@ export default function NewTransactionModal({
                 onChange={handleDateChange}
                 required
               />
+            </div>
+
+            {/* Conta Bancária */}
+            <div className="space-y-1">
+              <Label htmlFor="bankId">
+                Conta Bancária {paymentMethod === 'card' ? '(opcional)' : ''}
+              </Label>
+              <Select
+                id="bankId"
+                value={selectedCardId}
+                onChange={(e) => setSelectedCardId(e.target.value)}
+                required={paymentMethod !== 'card'} // Torna obrigatório apenas se não for cartão
+              >
+                <option value="">Selecione uma conta</option>
+                {accounts.map(account => (
+                  <option key={account.id} value={account.id}>
+                    {account.bankName} ({formatCurrency(account.balance)})
+                  </option>
+                ))}
+              </Select>
+              {paymentMethod === 'card' && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Opcional para pagamentos com cartão de crédito
+                </p>
+              )}
             </div>
 
             {/* Botões */}

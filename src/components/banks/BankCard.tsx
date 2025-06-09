@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { getBankInitials } from '../../utils/strings';
 import type { BankAccount } from '../../types/finances';
+import BankHistoryModal from './BankHistoryModal';
 
 interface BankCardProps {
   bank: BankAccount;
@@ -12,18 +13,24 @@ interface BankCardProps {
 
 export default function BankCard({ bank, onViewTransactions, onRemoveRequest }: BankCardProps) {
   const [showBalance, setShowBalance] = useState(true);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
 
-  const getAccountTypeLabel = (type: 'corrente' | 'poupanca' | 'investimento') => {
+  const getAccountTypeLabel = (type: 'checking' | 'savings' | 'investment') => {
     switch (type) {
-      case 'corrente':
+      case 'checking':
         return 'Conta Corrente';
-      case 'poupanca':
+      case 'savings':
         return 'Conta Poupança';
-      case 'investimento':
+      case 'investment':
         return 'Conta Investimento';
       default:
         return type;
     }
+  };
+
+  const handleViewTransactions = () => {
+    // Abre o modal de histórico em vez de chamar a função original
+    setShowHistoryModal(true);
   };
 
   return (
@@ -31,8 +38,8 @@ export default function BankCard({ bank, onViewTransactions, onRemoveRequest }: 
       <div 
         className="p-6 rounded-xl transition-all duration-300 hover:scale-[1.02] shadow-lg dark:shadow-gray-700/50"
         style={{
-          backgroundColor: bank.color + '20',
-          borderColor: bank.color,
+          backgroundColor: (bank.color || '#000000') + '20',
+          borderColor: bank.color || '#000000',
           borderWidth: '1px 0 0 4px',
           borderStyle: 'solid'
         }}
@@ -42,7 +49,7 @@ export default function BankCard({ bank, onViewTransactions, onRemoveRequest }: 
           <div className="flex items-center gap-3">
             <div 
               className="h-10 w-10 rounded-full flex items-center justify-center text-white font-semibold text-sm"
-              style={{ backgroundColor: bank.color }}
+              style={{ backgroundColor: bank.color || '#000000' }}
             >
               {getBankInitials(bank.bankName)}
             </div>
@@ -66,7 +73,7 @@ export default function BankCard({ bank, onViewTransactions, onRemoveRequest }: 
               <Trash2 className="h-4 w-4 text-red-500 dark:text-red-400" />
             </button>
             <button
-              onClick={() => onViewTransactions(bank.id)}
+              onClick={handleViewTransactions}
               className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
               title="Ver transações"
             >
@@ -140,6 +147,13 @@ export default function BankCard({ bank, onViewTransactions, onRemoveRequest }: 
           )}
         </div>
       </div>
+
+      {/* Modal de Histórico */}
+      <BankHistoryModal 
+        isOpen={showHistoryModal} 
+        onClose={() => setShowHistoryModal(false)} 
+        bank={bank}
+      />
     </div>
   );
 } 
