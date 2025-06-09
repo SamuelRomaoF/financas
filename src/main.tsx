@@ -4,6 +4,10 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App.tsx';
 import { AuthProvider } from './contexts/AuthContext.tsx';
 import './index.css';
+import { checkEnvironment } from './utils/environment.ts';
+
+// Verifica se o ambiente está configurado corretamente
+checkEnvironment();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

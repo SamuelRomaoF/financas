@@ -6,10 +6,14 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:vercel": "node vercel-build.js",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "bot": "node src/agent/index.js",
-    "bot:dev": "nodemon src/agent/index.js"
+    "bot:dev": "nodemon src/agent/index.js",
+    "deploy": "vercel",
+    "deploy:prod": "vercel --prod",
+    "deploy:wizard": "node deploy.js"
   },
   "keywords": [
     "ai",
