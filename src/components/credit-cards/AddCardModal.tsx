@@ -1,27 +1,16 @@
-import { useState, useEffect, ChangeEvent, FormEvent } from 'react';
-import { X, CreditCard as CreditCardIcon } from 'lucide-react';
-import Button from '../ui/Button';
-import Input from '../ui/Input'; // Corrigido: default import
-import Select from '../ui/Select'; // Corrigido: default import
+import { CreditCard as CreditCardIcon, X } from 'lucide-react';
+import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { SaveableCreditCardData } from '../../types/finances'; // Importar de types/finances
-
-// Interface alinhada com CreditCardData de WalletPage (campos que o modal coleta)
-// O ID e currentSpending serão tratados em WalletPage
-// export interface SaveableCreditCardData { // Definição removida
-//   name: string; 
-//   lastFourDigits?: string;
-//   limit: number;
-//   dueDate: number;
-//   closingDate: number;
-//   color: string; 
-//   brand: 'visa' | 'mastercard' | 'elo' | 'amex'; 
-// }
+import { CreditCardData, SaveableCreditCardData } from '../../types/finances';
+import Button from '../ui/Button';
+import Input from '../ui/Input';
+import Select from '../ui/Select';
 
 interface AddCardModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSaveCard: (cardData: SaveableCreditCardData) => void; // Agora usa o tipo importado
+  onSaveCard: (cardData: SaveableCreditCardData) => void;
+  cardToEdit: CreditCardData | null;
 }
 
 const predefinedCardsOptions = [
@@ -30,28 +19,46 @@ const predefinedCardsOptions = [
   { name: 'Itaú Crédito', color: '#EC7000', brand: 'mastercard' as const },
   { name: 'Bradesco Crédito', color: '#CC092F', brand: 'visa' as const },
   { name: 'Santander Crédito', color: '#EC0000', brand: 'mastercard' as const },
-  { name: 'BB Crédito', color: '#0033A0', brand: 'visa' as const }, // Azul para BB, amarelo muito claro para texto
-  { name: 'Outro', color: '#6B7280', brand: 'outro' as const } // Alterado de 'other' para 'outro'
+  { name: 'BB Crédito', color: '#0033A0', brand: 'visa' as const },
+  { name: 'Outro', color: '#6B7280', brand: 'outro' as const }
 ];
 
 // Marcas válidas para o select quando "Outro" é escolhido.
-// Estas devem ser um subconjunto das marcas em SaveableCreditCardData (excluindo 'outro' que é o gatilho)
 const validBrandsForOtherSelection: Array<Exclude<SaveableCreditCardData['brand'], 'outro'> > = [
     'visa', 'mastercard', 'elo', 'amex', 'hipercard', 'diners'
 ];
 
-export default function AddCardModal({ isOpen, onClose, onSaveCard }: AddCardModalProps) {
+export default function AddCardModal({ isOpen, onClose, onSaveCard, cardToEdit }: AddCardModalProps) {
   const [selectedPredefinedName, setSelectedPredefinedName] = useState(predefinedCardsOptions[0].name);
   const [customCardName, setCustomCardName] = useState('');
   const [lastFourDigits, setLastFourDigits] = useState('');
   const [limit, setLimit] = useState<number | '' >('');
   const [dueDate, setDueDate] = useState<number | '' >('');
   const [closingDate, setClosingDate] = useState<number | '' >('');
-  // Usa o tipo de brand da interface SaveableCreditCardData
   const [selectedBrand, setSelectedBrand] = useState<SaveableCreditCardData['brand']>(predefinedCardsOptions[0].brand);
 
+  // Preencher o formulário com os dados do cartão a ser editado
   useEffect(() => {
-    if (!isOpen) {
+    if (cardToEdit) {
+      // Verificar se o cartão corresponde a um dos predefinidos
+      const predefinedCard = predefinedCardsOptions.find(
+        option => option.name === cardToEdit.name && option.brand === cardToEdit.brand
+      );
+      
+      if (predefinedCard) {
+        setSelectedPredefinedName(predefinedCard.name);
+      } else {
+        setSelectedPredefinedName('Outro');
+        setCustomCardName(cardToEdit.name);
+      }
+      
+      setLastFourDigits(cardToEdit.lastFourDigits || '');
+      setLimit(cardToEdit.limit);
+      setDueDate(cardToEdit.dueDate);
+      setClosingDate(cardToEdit.closingDate);
+      setSelectedBrand(cardToEdit.brand);
+    } else if (!isOpen) {
+      // Resetar formulário quando modal é fechado
       setSelectedPredefinedName(predefinedCardsOptions[0].name);
       setCustomCardName('');
       setLastFourDigits('');
@@ -60,7 +67,7 @@ export default function AddCardModal({ isOpen, onClose, onSaveCard }: AddCardMod
       setClosingDate('');
       setSelectedBrand(predefinedCardsOptions[0].brand);
     }
-  }, [isOpen]);
+  }, [cardToEdit, isOpen]);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -85,9 +92,7 @@ export default function AddCardModal({ isOpen, onClose, onSaveCard }: AddCardMod
         brandToSave = selectedBrand;
     } else {
       const predefined = predefinedCardsOptions.find(p => p.name === selectedPredefinedName);
-      // predefined.brand aqui pode ser 'mastercard', 'visa', ou 'outro' se for o item "Outro" da lista principal.
-      // Contudo, selectedPredefinedName !== 'Outro' garante que não é o caso 'outro' aqui.
-      brandToSave = predefined?.brand as SaveableCreditCardData['brand']; // Cast para o tipo mais específico
+      brandToSave = predefined?.brand as SaveableCreditCardData['brand'];
     }
 
     const cardDataToSave: SaveableCreditCardData = {
@@ -114,7 +119,8 @@ export default function AddCardModal({ isOpen, onClose, onSaveCard }: AddCardMod
           <X size={24} />
         </button>
         <h2 className="text-xl font-semibold mb-6 flex items-center text-gray-800 dark:text-white">
-          <CreditCardIcon className="mr-2 h-6 w-6 text-primary-500" /> Adicionar Novo Cartão
+          <CreditCardIcon className="mr-2 h-6 w-6 text-primary-500" />
+          {cardToEdit ? 'Editar Cartão' : 'Adicionar Novo Cartão'}
         </h2>
         
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -127,7 +133,6 @@ export default function AddCardModal({ isOpen, onClose, onSaveCard }: AddCardMod
                 const newSelectedName = e.target.value;
                 setSelectedPredefinedName(newSelectedName);
                 const cardOption = predefinedCardsOptions.find(p => p.name === newSelectedName);
-                // Atualiza selectedBrand com a marca do item predefinido ou 'outro' se for o caso "Outro".
                 setSelectedBrand(cardOption?.brand || 'outro'); 
                 if (newSelectedName !== 'Outro') setCustomCardName(''); 
               }}
@@ -159,7 +164,6 @@ export default function AddCardModal({ isOpen, onClose, onSaveCard }: AddCardMod
                 required={selectedPredefinedName === 'Outro'}
               >
                 <option value="" disabled>Selecione a bandeira</option>
-                {/* Usar validBrandsForOtherSelection para popular as opções de bandeira */}
                 {validBrandsForOtherSelection.map(brand => (
                     <option key={brand} value={brand}>{brand.charAt(0).toUpperCase() + brand.slice(1)}</option>
                 ))}
@@ -182,9 +186,11 @@ export default function AddCardModal({ isOpen, onClose, onSaveCard }: AddCardMod
             <label htmlFor="limit" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Limite (R$)</label>
             <Input 
               id="limit" 
-              type="number" 
               value={limit} 
-              onChange={(e: ChangeEvent<HTMLInputElement>) => setLimit(e.target.value === '' ? '' : parseFloat(e.target.value))} 
+              onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                const value = e.target.value.replace(/\D/g, '');
+                setLimit(value === '' ? '' : Number(value));
+              }} 
               placeholder="Ex: 5000"
               required
             />
@@ -195,10 +201,16 @@ export default function AddCardModal({ isOpen, onClose, onSaveCard }: AddCardMod
               <label htmlFor="dueDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Vencimento (Dia)</label>
               <Input 
                 id="dueDate" 
-                type="number" 
-                min={1} max={31}
                 value={dueDate} 
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setDueDate(e.target.value === '' ? '' : parseInt(e.target.value, 10))} 
+                onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                  const value = e.target.value.replace(/\D/g, '');
+                  if (value === '') {
+                    setDueDate('');
+                  } else {
+                    const numValue = parseInt(value, 10);
+                    setDueDate(numValue > 31 ? 31 : numValue);
+                  }
+                }} 
                 placeholder="Ex: 10"
                 required
               />
@@ -207,10 +219,16 @@ export default function AddCardModal({ isOpen, onClose, onSaveCard }: AddCardMod
               <label htmlFor="closingDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fechamento (Dia)</label>
               <Input 
                 id="closingDate" 
-                type="number" 
-                min={1} max={31}
                 value={closingDate} 
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setClosingDate(e.target.value === '' ? '' : parseInt(e.target.value, 10))} 
+                onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                  const value = e.target.value.replace(/\D/g, '');
+                  if (value === '') {
+                    setClosingDate('');
+                  } else {
+                    const numValue = parseInt(value, 10);
+                    setClosingDate(numValue > 31 ? 31 : numValue);
+                  }
+                }} 
                 placeholder="Ex: 01"
                 required
               />
@@ -219,7 +237,7 @@ export default function AddCardModal({ isOpen, onClose, onSaveCard }: AddCardMod
 
           <div className="flex justify-end space-x-3 pt-4">
             <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>
-            <Button type="submit">Salvar Cartão</Button>
+            <Button type="submit">{cardToEdit ? 'Salvar Alterações' : 'Salvar Cartão'}</Button>
           </div>
         </form>
       </div>

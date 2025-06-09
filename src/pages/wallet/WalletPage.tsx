@@ -1,399 +1,321 @@
-import { Building2, CreditCard, DollarSign, Plus, Wallet, Trash2 } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import BankAccountDetailsModal from '../../components/banks/BankAccountDetailsModal';
-import CreditCardDetailsModal from '../../components/credit-cards/CreditCardDetailsModal';
-import Button from '../../components/ui/Button';
-import { Card, CardContent } from '../../components/ui/Card';
-import { formatCurrency } from '../../utils/formatCurrency';
-import { useSubscription } from '../../hooks/useSubscription';
+import { Plus } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 import AddCardModal from '../../components/credit-cards/AddCardModal';
-import SelectHighlightedBanksModal from '../../components/banks/SelectHighlightedBanksModal';
-import ConfirmationModal from '../../components/ui/ConfirmationModal';
-import { useBankAccounts } from '../../contexts/BankAccountContext';
-import { BankAccount, CreditCardData, SaveableCreditCardData } from '../../types/finances';
+import CreditCardItem from '../../components/credit-cards/CreditCardItem';
+import Button from '../../components/ui/Button';
+import { Card } from '../../components/ui/Card';
+import ConfirmModal from '../../components/ui/ConfirmModal';
+import { useAuth } from '../../hooks/useAuth';
+import { useSubscription } from '../../hooks/useSubscription';
+import { supabase } from '../../lib/supabase';
+import { CreditCardData, SaveableCreditCardData } from '../../types/finances';
+import { formatCurrency } from '../../utils/formatCurrency';
 
-const getBankInitials = (bankName: string): string => {
-  if (!bankName) return '??';
-  const words = bankName.split(' ');
-  if (words.length >= 2) {
-    return (words[0][0] + (words[1][0] || '')).toUpperCase();
-  } else if (words.length === 1 && bankName.length >= 2) {
-    return bankName.substring(0, 2).toUpperCase();
-  } else if (bankName.length > 0) {
-    return bankName.substring(0, 1).toUpperCase();
-  }
-  return '??';
-};
+// Limite de cartões para o plano básico
+const BASIC_PLAN_CARD_LIMIT = 3;
 
 export default function WalletPage() {
-  const [selectedAccountDetails, setSelectedAccountDetails] = useState<BankAccount | null>(null);
-  const [selectedCard, setSelectedCard] = useState<CreditCardData | null>(null);
+  const { user } = useAuth();
   const { subscription } = useSubscription();
-  const currentPlan = subscription?.plan;
+  const navigate = useNavigate();
+  const isPremium = subscription?.plan === 'premium';
+  const isBasic = subscription?.plan === 'basic';
 
-  const { accounts: allUserAccounts, highlightedAccountIds, setHighlightedAccountIds, getAccountById } = useBankAccounts();
-
-  const [cardsData, setCardsData] = useState<CreditCardData[]>([
-    {
-      id: '1',
-      name: 'Nubank',
-      lastFourDigits: '1234',
-      limit: 5000,
-      currentSpending: 2350,
-      dueDate: 15,
-      closingDate: 8,
-      color: '#820AD1',
-      brand: 'mastercard'
-    },
-    {
-      id: '2',
-      name: 'Inter',
-      lastFourDigits: '5678',
-      limit: 3000,
-      currentSpending: 1200,
-      dueDate: 20,
-      closingDate: 13,
-      color: '#FF7A00',
-      brand: 'visa'
-    }
-  ]);
-
-  const [isSelectBanksModalOpen, setIsSelectBanksModalOpen] = useState(false);
-
+  const [cardsData, setCardsData] = useState<CreditCardData[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isAddCardModalOpen, setIsAddCardModalOpen] = useState(false);
+  const [cardToEdit, setCardToEdit] = useState<CreditCardData | null>(null);
   const [isConfirmRemoveCardModalOpen, setIsConfirmRemoveCardModalOpen] = useState(false);
   const [cardToRemoveId, setCardToRemoveId] = useState<string | null>(null);
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
 
-  const displayedCards = currentPlan === 'basic' ? cardsData.slice(0, 2) : cardsData;
-  const displayedHighlightedAccounts = allUserAccounts.filter(account => highlightedAccountIds.includes(account.id));
+  useEffect(() => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    
+    fetchCreditCards();
+  }, [user, navigate]);
 
-  const totalBalance = allUserAccounts.reduce((sum, account) => sum + account.balance, 0);
-  const totalCreditLimit = cardsData.reduce((sum, card) => sum + card.limit, 0);
-  const totalCreditUsed = cardsData.reduce((sum, card) => sum + (card.currentSpending || 0), 0);
-
-  const handleAddCardClick = () => {
-    if (currentPlan === 'basic' && displayedCards.length >= 2) {
-      toast.error('Você atingiu o limite de 2 cartões para o Plano Básico. Faça upgrade para adicionar mais!');
-    } else {
-      setIsAddCardModalOpen(true);
+  const fetchCreditCards = async () => {
+    if (!user) return;
+    
+    try {
+      setIsLoading(true);
+      const { data, error } = await supabase
+        .from('credit_cards')
+        .select('*')
+        .eq('user_id', user.id);
+        
+      if (error) throw error;
+      
+      // Converter os dados para o formato CreditCardData
+      const formattedCards: CreditCardData[] = data.map(card => ({
+        id: card.id,
+        name: card.name,
+        brand: card.brand || 'outro',
+        lastFourDigits: card.last_four_digits,
+        limit: card.limit || 0,
+        currentSpending: card.current_spending || 0,
+        dueDate: card.due_date || 1,
+        closingDate: card.closing_date || 1,
+        color: card.color || '#6366F1'
+      }));
+      
+      setCardsData(formattedCards);
+    } catch (error) {
+      console.error('Erro ao buscar cartões de crédito:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleRemoveCard = (cardId: string) => {
+  const handleAddCardClick = () => {
+    // Verificar se o usuário do plano básico já atingiu o limite de cartões
+    if (isBasic && cardsData.length >= BASIC_PLAN_CARD_LIMIT) {
+      setIsUpgradeModalOpen(true);
+      return;
+    }
+    
+    setCardToEdit(null);
+    setIsAddCardModalOpen(true);
+  };
+
+  const handleEditCard = (card: CreditCardData) => {
+    setCardToEdit(card);
+      setIsAddCardModalOpen(true);
+  };
+
+  const handleRemoveCardClick = (cardId: string) => {
     setCardToRemoveId(cardId);
     setIsConfirmRemoveCardModalOpen(true);
   };
 
-  const executeRemoveCard = () => {
-    if (cardToRemoveId) {
-      setCardsData(prevCards => prevCards.filter(card => card.id !== cardToRemoveId));
-      toast.success("Cartão removido com sucesso!");
-    }
+  const handleConfirmRemoveCard = async () => {
+    if (!cardToRemoveId || !user) return;
+    
+    try {
+      const { error } = await supabase
+        .from('credit_cards')
+        .delete()
+        .eq('id', cardToRemoveId)
+        .eq('user_id', user.id);
+        
+      if (error) throw error;
+      
+      setCardsData(prev => prev.filter(card => card.id !== cardToRemoveId));
+      toast.success("Cartão removido com sucesso");
+    } catch (error) {
+      console.error('Erro ao remover cartão:', error);
+      toast.error("Erro ao remover cartão");
+    } finally {
     setIsConfirmRemoveCardModalOpen(false);
     setCardToRemoveId(null);
+    }
   };
 
-  const handleSaveCard = (cardDataFromModal: SaveableCreditCardData) => {
-    const newCardWithId: CreditCardData = {
-      id: Date.now().toString(),
-      name: cardDataFromModal.name,
-      lastFourDigits: cardDataFromModal.lastFourDigits,
-      limit: cardDataFromModal.limit,
-      currentSpending: 0,
-      dueDate: cardDataFromModal.dueDate,
-      closingDate: cardDataFromModal.closingDate,
-      color: cardDataFromModal.color,
-      brand: cardDataFromModal.brand,
-    };
-    setCardsData(prevCards => [...prevCards, newCardWithId]);
+  const handleSaveCard = async (cardData: SaveableCreditCardData) => {
+    if (!user) return;
+    
+    try {
+      if (cardToEdit) {
+        // Atualizar cartão existente
+        const { error } = await supabase
+          .from('credit_cards')
+          .update({
+            name: cardData.name,
+            last_four_digits: cardData.lastFourDigits,
+            limit: cardData.limit,
+            closing_date: cardData.closingDate,
+            due_date: cardData.dueDate,
+            color: cardData.color,
+            brand: cardData.brand
+          })
+          .eq('id', cardToEdit.id)
+          .eq('user_id', user.id);
+          
+        if (error) throw error;
+        toast.success("Cartão atualizado com sucesso");
+      } else {
+        // Verificar novamente o limite para o plano básico
+        if (isBasic && cardsData.length >= BASIC_PLAN_CARD_LIMIT) {
+          toast.error(`Limite de ${BASIC_PLAN_CARD_LIMIT} cartões atingido no plano Básico`);
+          return;
+        }
+        
+        // Adicionar novo cartão
+        const { error } = await supabase
+          .from('credit_cards')
+          .insert({
+            user_id: user.id,
+            name: cardData.name,
+            last_four_digits: cardData.lastFourDigits,
+            limit: cardData.limit,
+            closing_date: cardData.closingDate,
+            due_date: cardData.dueDate,
+            color: cardData.color,
+            brand: cardData.brand
+          });
+          
+        if (error) throw error;
+        toast.success("Cartão adicionado com sucesso");
+      }
+      
+      // Recarregar dados
+      fetchCreditCards();
+    } catch (error) {
+      console.error('Erro ao salvar cartão:', error);
+      toast.error("Erro ao salvar cartão");
+    } finally {
     setIsAddCardModalOpen(false);
-    toast.success("Cartão adicionado com sucesso!");
+      setCardToEdit(null);
+    }
   };
 
-  const handleSaveHighlightedBanks = (selectedIds: string[]) => {
-    setHighlightedAccountIds(selectedIds);
-    setIsSelectBanksModalOpen(false);
-  };
+  const totalCardLimit = cardsData.reduce(
+    (total, card) => total + (card.limit || 0),
+    0
+  );
+
+  // Verificar se o usuário do plano básico atingiu o limite de cartões
+  const hasReachedCardLimit = isBasic && cardsData.length >= BASIC_PLAN_CARD_LIMIT;
+
+  if (isLoading) {
+    return <div className="container mx-auto px-4 py-8 text-center">Carregando...</div>;
+  }
 
   return (
-    <div className="space-y-8">
-      <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-primary-600 to-primary-400 p-8 text-white">
-        <div className="relative z-10">
-          <h1 className="text-3xl font-bold">Carteira Digital</h1>
-          <p className="mt-2 text-primary-100">Gerencie suas contas e cartões em um só lugar</p>
+    <div className="container mx-auto px-4 py-8">
+      <h1 className="text-2xl font-bold mb-6">Minha Carteira</h1>
           
-          <div className={`mt-6 grid grid-cols-1 ${currentPlan !== 'basic' ? 'md:grid-cols-3' : ''} gap-6`}>
-            <div className="rounded-lg bg-white/10 backdrop-blur-sm p-4">
-              <div className="flex items-center gap-3">
-                <div className="rounded-full bg-white/20 p-2">
-                  <Wallet className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-sm text-primary-100">Saldo Total</p>
-                  <p className="text-xl font-bold">{formatCurrency(totalBalance)}</p>
-                </div>
-              </div>
-            </div>
-
-            {currentPlan !== 'basic' && (
-              <>
-                <div className="rounded-lg bg-white/10 backdrop-blur-sm p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="rounded-full bg-white/20 p-2">
-                      <CreditCard className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-primary-100">Limite Total</p>
-                      <p className="text-xl font-bold">{formatCurrency(totalCreditLimit)}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-lg bg-white/10 backdrop-blur-sm p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="rounded-full bg-white/20 p-2">
-                      <DollarSign className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-primary-100">Limite Usado</p>
-                      <p className="text-xl font-bold">{formatCurrency(totalCreditUsed)}</p>
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <Card className="p-6">
+          <h2 className="text-lg font-semibold mb-2">Limite Total</h2>
+          <p className="text-3xl font-bold text-secondary-600 dark:text-secondary-400">
+            {formatCurrency(totalCardLimit)}
+          </p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            Em todos os cartões
+          </p>
+        </Card>
         
-        <div className="absolute top-0 right-0 -translate-y-1/4 translate-x-1/4">
-          <div className="h-64 w-64 rounded-full bg-white/10 blur-3xl"></div>
-        </div>
-        <div className="absolute bottom-0 left-0 translate-y-1/4 -translate-x-1/4">
-          <div className="h-64 w-64 rounded-full bg-white/10 blur-3xl"></div>
-        </div>
-      </div>
-
-      {currentPlan === 'premium' && (
-        <div>
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-                Contas Bancárias Destacadas
-              </h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                Suas contas principais ({displayedHighlightedAccounts.length} de até 3). Gerencie todas as suas contas na seção 'Bancos'.
+        {/* Mensagem sobre contas bancárias para planos não premium */}
+        {!isPremium && (
+          <Card className="p-6 bg-gradient-to-r from-primary-50 to-secondary-50 dark:from-primary-900/20 dark:to-secondary-900/20 border border-primary-100 dark:border-primary-800">
+            <h2 className="text-lg font-semibold mb-2">Contas Bancárias</h2>
+            <p className="text-gray-700 dark:text-gray-300 mb-4">
+              A funcionalidade de contas bancárias é exclusiva para assinantes do plano Premium.
               </p>
-            </div>
             <Button 
-              variant="outline"
-              size="sm" 
-              className="mt-2 sm:mt-0 flex items-center gap-2"
-              onClick={() => setIsSelectBanksModalOpen(true)}
+              variant="primary" 
+              onClick={() => navigate('/subscription')}
+              className="w-full sm:w-auto"
             >
-              <Building2 className="h-4 w-4" />
-              Gerenciar Destaques
+              Fazer upgrade para Premium
             </Button>
-          </div>
-
-          {displayedHighlightedAccounts.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-              {displayedHighlightedAccounts.map(account => (
-                <Card 
-                  key={account.id} 
-                  className="group hover:shadow-lg transition-shadow duration-200 bg-white dark:bg-gray-800"
-                >
-                  <CardContent className="p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-4">
-                        <div 
-                          className="w-16 h-16 rounded-xl flex items-center justify-center font-bold text-2xl group-hover:scale-110 transition-transform duration-200"
-                          style={{ backgroundColor: `${account.color}20`, color: account.color }}
-                        >
-                          {getBankInitials(account.bankName)}
-                        </div>
-                        <div>
-                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{account.bankName}</h3>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            {account.accountType === 'corrente' ? 'Conta Corrente' : account.accountType === 'poupanca' ? 'Poupança' : 'Investimentos'}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="mt-6 space-y-4">
-                      <div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Saldo Disponível</p>
-                        <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(account.balance)}</p>
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <p className="text-gray-500 dark:text-gray-400">Conta: {account.accountNumber}</p>
-                        <button 
-                          className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300"
-                          onClick={() => setSelectedAccountDetails(account)}
-                        >
-                          Ver Detalhes
-                        </button>
-                      </div>
-                    </div>
-                  </CardContent>
                 </Card>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-              Nenhuma conta para destacar. Adicione contas na seção 'Bancos' e selecione seus destaques aqui.
-            </p>
           )}
         </div>
-      )}
 
-      <div>
-        <div className="flex items-center justify-between mb-6">
+      <div className="mb-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Cartões de Crédito
-            </h2>
+            <h2 className="text-xl font-semibold mb-1">Cartões de Crédito</h2>
+            {isBasic && (
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Acompanhe seus gastos e limites
+                {cardsData.length} de {BASIC_PLAN_CARD_LIMIT} cartões (Plano Básico)
             </p>
+            )}
           </div>
+          
           <Button 
-            variant="outline" 
-            className="flex items-center gap-2" 
+            variant="primary" 
+            size="sm"
             onClick={handleAddCardClick}
+            className="flex items-center gap-2"
+            disabled={hasReachedCardLimit}
           >
             <Plus className="h-4 w-4" />
             Adicionar Cartão
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {displayedCards.map(card => (
-            <Card 
-              key={card.id} 
-              className="group hover:shadow-lg transition-shadow duration-200 overflow-hidden bg-white dark:bg-gray-800"
-            >
-              <div 
-                className="h-24 p-6 flex items-center justify-between"
-                style={{ 
-                  background: `linear-gradient(135deg, ${card.color}, ${card.color}dd)`
-                }}
+        {hasReachedCardLimit && (
+          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-4">
+            <p className="text-sm text-yellow-700 dark:text-yellow-400">
+              Você atingiu o limite de {BASIC_PLAN_CARD_LIMIT} cartões disponíveis no plano Básico.{' '}
+              <button 
+                onClick={() => navigate('/subscription')}
+                className="text-primary-600 dark:text-primary-400 underline hover:text-primary-800"
               >
-                <div>
-                  <h3 className="font-semibold text-white">
-                    {card.name}
-                  </h3>
-                  <p className="text-white/80 text-sm">
-                    •••• •••• •••• {card.lastFourDigits || 'XXXX'}
+                Faça upgrade para o plano Premium
+              </button>{' '}
+              para adicionar cartões ilimitados.
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <CreditCard className="h-6 w-6 text-white" />
-                  <Trash2 
-                    className="h-5 w-5 text-white/70 hover:text-white cursor-pointer transition-colors"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRemoveCard(card.id);
-                    }}
-                  />
-                </div>
-              </div>
+        )}
 
-              <CardContent className="p-6 space-y-4">
-                <div>
-                  <div className="flex justify-between items-center text-sm mb-1">
-                    <span className="text-gray-500 dark:text-gray-400">Limite Utilizado</span>
-                    <span className="font-medium text-gray-700 dark:text-gray-300">
-                      {formatCurrency(card.currentSpending || 0)} / {formatCurrency(card.limit)}
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
-                    <div 
-                      className="bg-primary-600 h-2.5 rounded-full" 
-                      style={{ width: `${((card.currentSpending || 0) / card.limit) * 100}%` }}
-                    ></div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-4 text-center">
-                  <div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Vencimento</p>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">Dia {card.dueDate}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Fechamento</p>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">Dia {card.closingDate}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Disponível</p>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">
-                      {formatCurrency(card.limit - (card.currentSpending || 0))}
-                    </p>
-                  </div>
-                </div>
-                
+        {cardsData.length === 0 ? (
+          <Card className="p-8 text-center">
+            <p className="text-gray-500 dark:text-gray-400 mb-4">
+              Você ainda não adicionou nenhum cartão de crédito.
+            </p>
                 <Button 
-                  variant="ghost" 
-                  className="w-full text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/50"
-                  onClick={() => setSelectedCard(card)}
-                >
-                  Ver Fatura Detalhada
+              variant="outline" 
+              size="sm"
+              onClick={handleAddCardClick}
+              className="flex items-center gap-2 mx-auto"
+            >
+              <Plus className="h-4 w-4" />
+              Adicionar Cartão
                 </Button>
-              </CardContent>
             </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {cardsData.map((card) => (
+              <CreditCardItem
+                key={card.id}
+                card={card}
+                onEdit={() => handleEditCard(card)}
+                onRemove={() => handleRemoveCardClick(card.id)}
+              />
           ))}
         </div>
+        )}
       </div>
 
-      {selectedAccountDetails && (
-        <BankAccountDetailsModal 
-          isOpen={true}
-          account={selectedAccountDetails}
-          onClose={() => setSelectedAccountDetails(null)}
-        />
-      )}
-      {selectedCard && (
-        <CreditCardDetailsModal
-          isOpen={true}
-          card={selectedCard}
-          onClose={() => setSelectedCard(null)}
-        />
-      )}
-
-      {isAddCardModalOpen && (
+      {/* Modais */}
         <AddCardModal 
           isOpen={isAddCardModalOpen}
           onClose={() => setIsAddCardModalOpen(false)}
           onSaveCard={handleSaveCard}
+        cardToEdit={cardToEdit}
         />
-      )}
 
-      {isConfirmRemoveCardModalOpen && cardToRemoveId && (
-        <ConfirmationModal
+      <ConfirmModal
           isOpen={isConfirmRemoveCardModalOpen}
-          onClose={() => {
-            setIsConfirmRemoveCardModalOpen(false);
-            setCardToRemoveId(null);
-          }}
-          onConfirm={executeRemoveCard}
-          title="Confirmar Exclusão"
-          message={`Tem certeza que deseja remover este cartão? Esta ação não poderá ser desfeita.`}
-          confirmButtonText="Excluir Cartão"
-          confirmButtonIntent="destructive"
-          cancelButtonText="Cancelar"
-        />
-      )}
+        onClose={() => setIsConfirmRemoveCardModalOpen(false)}
+        onConfirm={handleConfirmRemoveCard}
+        title="Remover Cartão"
+        description="Tem certeza que deseja remover este cartão? Esta ação não pode ser desfeita."
+        confirmText="Remover"
+        cancelText="Cancelar"
+        variant="danger"
+      />
 
-      {currentPlan === 'premium' && (
-          <SelectHighlightedBanksModal 
-            isOpen={isSelectBanksModalOpen}
-            onClose={() => setIsSelectBanksModalOpen(false)}
-            allUserAccounts={allUserAccounts}
-            currentHighlightedIds={highlightedAccountIds}
-            onSaveSelection={handleSaveHighlightedBanks}
-            maxSelectionLimit={3}
-          />
-      )}
+      <ConfirmModal
+        isOpen={isUpgradeModalOpen}
+        onClose={() => setIsUpgradeModalOpen(false)}
+        onConfirm={() => navigate('/subscription')}
+        title="Limite de Cartões Atingido"
+        description={`Você já possui ${BASIC_PLAN_CARD_LIMIT} cartões, que é o limite para o plano Básico. Para adicionar mais cartões, faça upgrade para o plano Premium.`}
+        confirmText="Ver Planos"
+        cancelText="Cancelar"
+        variant="primary"
+      />
     </div>
   );
 } 

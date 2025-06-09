@@ -1,0 +1,12 @@
+{
+  "name": "finance-agent",
+  "version": "1.0.0",
+  "description": "Agente de finanças para WhatsApp",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "author": "",
+  "license": "ISC"
+} 

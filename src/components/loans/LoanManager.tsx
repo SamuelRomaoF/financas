@@ -1,5 +1,8 @@
 import { Calendar, Clock, DollarSign, Plus, X } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
+import { useAuth } from '../../hooks/useAuth';
+import { supabase } from '../../lib/supabase';
 import { formatCurrency } from '../../utils/formatCurrency';
 import Button from '../ui/Button';
 import { Card, CardContent } from '../ui/Card';
@@ -115,12 +118,13 @@ function AddLoanModal({ isOpen, onClose, onAdd }: AddLoanModalProps) {
                   Valor Total
                 </label>
                 <input
-                  type="number"
+                  type="text"
                   required
-                  min="0"
-                  step="0.01"
                   value={formData.totalAmount}
-                  onChange={(e) => setFormData(prev => ({ ...prev, totalAmount: e.target.value }))}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, '');
+                    setFormData(prev => ({ ...prev, totalAmount: value }));
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700"
                 />
               </div>
@@ -130,11 +134,13 @@ function AddLoanModal({ isOpen, onClose, onAdd }: AddLoanModalProps) {
                   Nº de Parcelas
                 </label>
                 <input
-                  type="number"
+                  type="text"
                   required
-                  min="1"
                   value={formData.installments}
-                  onChange={(e) => setFormData(prev => ({ ...prev, installments: e.target.value }))}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, '');
+                    setFormData(prev => ({ ...prev, installments: value }));
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700"
                 />
               </div>
@@ -146,12 +152,13 @@ function AddLoanModal({ isOpen, onClose, onAdd }: AddLoanModalProps) {
                   Valor da Parcela
                 </label>
                 <input
-                  type="number"
+                  type="text"
                   required
-                  min="0"
-                  step="0.01"
                   value={formData.installmentValue}
-                  onChange={(e) => setFormData(prev => ({ ...prev, installmentValue: e.target.value }))}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, '');
+                    setFormData(prev => ({ ...prev, installmentValue: value }));
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700"
                 />
               </div>
@@ -161,12 +168,13 @@ function AddLoanModal({ isOpen, onClose, onAdd }: AddLoanModalProps) {
                   Taxa de Juros (% a.m.)
                 </label>
                 <input
-                  type="number"
+                  type="text"
                   required
-                  min="0"
-                  step="0.01"
                   value={formData.interestRate}
-                  onChange={(e) => setFormData(prev => ({ ...prev, interestRate: e.target.value }))}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/[^\d.]/g, '');
+                    setFormData(prev => ({ ...prev, interestRate: value }));
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700"
                 />
               </div>
@@ -208,168 +216,214 @@ function AddLoanModal({ isOpen, onClose, onAdd }: AddLoanModalProps) {
 }
 
 export default function LoanManager() {
+  const { user } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [loans, setLoans] = useState<LoanData[]>([
-    {
-      id: '1',
-      name: 'Empréstimo Pessoal',
-      bank: 'Nubank',
-      totalAmount: 10000,
-      remainingAmount: 7500,
-      installments: 12,
-      remainingInstallments: 9,
-      installmentValue: 916.67,
-      nextPaymentDate: '2024-04-15',
-      interestRate: 1.99,
-      status: 'em_dia'
-    },
-    {
-      id: '2',
-      name: 'Financiamento Carro',
-      bank: 'Santander',
-      totalAmount: 45000,
-      remainingAmount: 38000,
-      installments: 48,
-      remainingInstallments: 42,
-      installmentValue: 1250.00,
-      nextPaymentDate: '2024-04-10',
-      interestRate: 1.45,
-      status: 'em_dia'
+  const [loans, setLoans] = useState<LoanData[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (user) {
+      fetchLoans();
     }
-  ]);
+  }, [user]);
 
-  const handleAddLoan = (newLoan: Omit<LoanData, 'id' | 'remainingAmount' | 'remainingInstallments'>) => {
-    const loan: LoanData = {
-      ...newLoan,
-      id: (loans.length + 1).toString(),
-      remainingAmount: newLoan.totalAmount,
-      remainingInstallments: newLoan.installments
-    };
-
-    setLoans(prev => [...prev, loan]);
+  const fetchLoans = async () => {
+    if (!user) return;
+    
+    try {
+      setIsLoading(true);
+      const { data, error } = await supabase
+        .from('loans')
+        .select('*')
+        .eq('user_id', user.id);
+        
+      if (error) throw error;
+      
+      // Transformar os dados do banco para o formato LoanData
+      const formattedLoans: LoanData[] = data.map(loan => {
+        // Calcular parcelas restantes
+        const startDate = new Date(loan.start_date);
+        const nextPaymentDate = new Date(loan.next_payment_date);
+        const monthsPassed = (nextPaymentDate.getFullYear() - startDate.getFullYear()) * 12 + 
+                            (nextPaymentDate.getMonth() - startDate.getMonth());
+        
+        const remainingInstallments = Math.max(0, loan.installments - monthsPassed);
+        const remainingAmount = remainingInstallments * loan.installment_value;
+        
+        return {
+          id: loan.id,
+          name: loan.name,
+          bank: loan.bank,
+          totalAmount: loan.total_amount,
+          remainingAmount: remainingAmount,
+          installments: loan.installments,
+          remainingInstallments: remainingInstallments,
+          installmentValue: loan.installment_value,
+          nextPaymentDate: loan.next_payment_date,
+          interestRate: loan.interest_rate,
+          status: loan.status || 'em_dia'
+        };
+      });
+      
+      setLoans(formattedLoans);
+    } catch (error) {
+      console.error('Erro ao buscar empréstimos:', error);
+      toast.error('Erro ao carregar empréstimos');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
+  const handleAddLoan = async (newLoan: Omit<LoanData, 'id' | 'remainingAmount' | 'remainingInstallments'>) => {
+    if (!user) return;
+    
+    try {
+      // Calcular data de início (estimada com base na data do próximo pagamento e número de parcelas)
+      const nextPaymentDate = new Date(newLoan.nextPaymentDate);
+      const startDate = new Date(nextPaymentDate);
+      startDate.setMonth(startDate.getMonth() - 1); // Assumindo que já pagou pelo menos 1 parcela
+      
+      // Inserir no banco de dados
+      const { data, error } = await supabase
+        .from('loans')
+        .insert({
+          user_id: user.id,
+          name: newLoan.name,
+          bank: newLoan.bank,
+          total_amount: newLoan.totalAmount,
+          installments: newLoan.installments,
+          installment_value: newLoan.installmentValue,
+          next_payment_date: newLoan.nextPaymentDate,
+          interest_rate: newLoan.interestRate,
+          status: newLoan.status,
+          start_date: startDate.toISOString().split('T')[0]
+        })
+        .select();
+        
+      if (error) throw error;
+      
+      // Recarregar empréstimos
+      fetchLoans();
+      toast.success('Empréstimo adicionado com sucesso');
+    } catch (error) {
+      console.error('Erro ao adicionar empréstimo:', error);
+      toast.error('Erro ao adicionar empréstimo');
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-40">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-500"></div>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div>
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-            Empréstimos
-          </h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Acompanhe seus empréstimos e financiamentos
-          </p>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">Empréstimos</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Acompanhe seus empréstimos e financiamentos</p>
         </div>
         <Button 
-          variant="primary" 
-          className="flex items-center gap-2"
           onClick={() => setIsModalOpen(true)}
+          variant="primary"
+          className="flex items-center gap-2"
         >
           <Plus className="h-4 w-4" />
           Adicionar Empréstimo
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {loans.map(loan => (
-          <Card key={loan.id} className="bg-white dark:bg-gray-800">
-            <CardContent className="p-6">
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h3 className="font-semibold text-gray-900 dark:text-white">
-                    {loan.name}
-                  </h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {loan.bank}
-                  </p>
-                </div>
-                <span 
-                  className={`px-2.5 py-1 rounded-full text-xs font-medium
-                    ${loan.status === 'em_dia' 
-                      ? 'bg-success-100 text-success-800 dark:bg-success-900/30 dark:text-success-400'
-                      : loan.status === 'atrasado'
-                        ? 'bg-error-100 text-error-800 dark:bg-error-900/30 dark:text-error-400'
-                        : 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
-                    }`}
-                >
-                  {loan.status === 'em_dia' ? 'Em dia' : loan.status === 'atrasado' ? 'Atrasado' : 'Quitado'}
-                </span>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-gray-500 dark:text-gray-400">Valor Pago</span>
-                    <span className="font-medium text-gray-900 dark:text-white">
-                      {formatCurrency(loan.totalAmount - loan.remainingAmount)} / {formatCurrency(loan.totalAmount)}
-                    </span>
-                  </div>
-                  <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full rounded-full transition-all bg-primary-500"
-                      style={{ 
-                        width: `${((loan.totalAmount - loan.remainingAmount) / loan.totalAmount) * 100}%`
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Clock className="h-4 w-4 text-gray-500" />
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Parcelas</p>
+      {loans.length === 0 ? (
+        <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-6 text-center">
+          <p className="text-gray-500 dark:text-gray-400">
+            Você ainda não tem empréstimos cadastrados.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {loans.map((loan) => (
+            <Card key={loan.id}>
+              <CardContent className="p-0">
+                <div className="p-4">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="font-medium text-lg">{loan.name}</h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">{loan.bank}</p>
                     </div>
-                    <p className="font-medium text-gray-900 dark:text-white">
-                      {loan.remainingInstallments} / {loan.installments}
-                    </p>
-                  </div>
-                  <div className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg">
-                    <div className="flex items-center gap-2 mb-1">
-                      <DollarSign className="h-4 w-4 text-gray-500" />
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Valor Parcela</p>
+                    <div className={`px-2 py-1 rounded text-xs font-medium ${
+                      loan.status === 'em_dia' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' : 
+                      loan.status === 'atrasado' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300' : 
+                      'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                    }`}>
+                      {loan.status === 'em_dia' ? 'Em dia' : 
+                       loan.status === 'atrasado' ? 'Atrasado' : 'Quitado'}
                     </div>
-                    <p className="font-medium text-gray-900 dark:text-white">
-                      {formatCurrency(loan.installmentValue)}
-                    </p>
                   </div>
                 </div>
-
-                <div className="flex justify-between items-center pt-4 border-t border-gray-200 dark:border-gray-700">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 flex items-center justify-center bg-primary-100 dark:bg-primary-900/30 rounded-lg">
-                      <Calendar className="h-5 w-5 text-primary-600 dark:text-primary-400" />
+                
+                <div className="border-t border-gray-200 dark:border-gray-700 p-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Valor Total</p>
+                      <p className="font-medium">{formatCurrency(loan.totalAmount)}</p>
                     </div>
                     <div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Próximo Pagamento</p>
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium text-gray-900 dark:text-white">
-                          {new Date(loan.nextPaymentDate).toLocaleDateString('pt-BR')}
-                        </p>
-                        <span className="text-sm font-medium text-primary-600 dark:text-primary-400">
-                          {formatCurrency(loan.installmentValue)}
-                        </span>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Valor Restante</p>
+                      <p className="font-medium">{formatCurrency(loan.remainingAmount)}</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="border-t border-gray-200 dark:border-gray-700 p-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex items-center">
+                      <Calendar className="h-4 w-4 text-primary-500 mr-2" />
+                      <div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">Próximo Pagamento</p>
+                        <p className="font-medium">{new Date(loan.nextPaymentDate).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center">
+                      <DollarSign className="h-4 w-4 text-primary-500 mr-2" />
+                      <div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">Valor da Parcela</p>
+                        <p className="font-medium">{formatCurrency(loan.installmentValue)}</p>
                       </div>
                     </div>
                   </div>
-                  <div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Taxa de Juros</p>
-                    <p className="font-medium text-gray-900 dark:text-white text-right">
-                      {loan.interestRate}% a.m.
-                    </p>
+                </div>
+                
+                <div className="border-t border-gray-200 dark:border-gray-700 p-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex items-center">
+                      <Clock className="h-4 w-4 text-primary-500 mr-2" />
+                      <div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">Parcelas</p>
+                        <p className="font-medium">{loan.remainingInstallments} de {loan.installments}</p>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Taxa de Juros</p>
+                      <p className="font-medium">{loan.interestRate.toFixed(2)}% a.m.</p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
-      <AddLoanModal 
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onAdd={handleAddLoan}
-      />
+      {isModalOpen && (
+        <AddLoanModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          onAdd={handleAddLoan}
+        />
+      )}
     </div>
   );
 } 

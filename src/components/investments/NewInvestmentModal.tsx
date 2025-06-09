@@ -82,12 +82,12 @@ export default function NewInvestmentModal({ isOpen, onClose, onSubmit }: NewInv
             <Label htmlFor="amount">Valor Investido</Label>
             <Input
               id="amount"
-              type="number"
-              min="0"
-              step="0.01"
               placeholder="R$ 0,00"
               value={formData.amount}
-              onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) })}
+              onChange={(e) => {
+                const value = e.target.value.replace(/\D/g, '');
+                setFormData({ ...formData, amount: value === '' ? 0 : parseFloat(value) });
+              }}
               required
             />
           </div>
@@ -100,11 +100,12 @@ export default function NewInvestmentModal({ isOpen, onClose, onSubmit }: NewInv
             </Label>
             <Input
               id="expectedReturn"
-              type="number"
-              step="0.01"
               placeholder="0%"
               value={formData.expectedReturn}
-              onChange={(e) => setFormData({ ...formData, expectedReturn: parseFloat(e.target.value) })}
+              onChange={(e) => {
+                const value = e.target.value.replace(/[^\d.]/g, '');
+                setFormData({ ...formData, expectedReturn: value === '' ? 0 : parseFloat(value) });
+              }}
             />
           </div>
 

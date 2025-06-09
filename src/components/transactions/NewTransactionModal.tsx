@@ -1,12 +1,19 @@
 import { ArrowDownLeft, ArrowUpRight, X } from 'lucide-react';
-import { ChangeEvent, useState } from 'react';
+import { ChangeEvent, useEffect, useState } from 'react';
+import { Category } from '../../contexts/CategoryContext';
+import { Transaction } from '../../contexts/TransactionContext';
+import { useAuth } from '../../hooks/useAuth';
+import { useSubscription } from '../../hooks/useSubscription';
+import { supabase } from '../../lib/supabase';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 import Select from '../ui/Select';
-import { useBankAccounts } from '../../contexts/BankAccountContext';
-import { Transaction } from '../../contexts/TransactionContext';
-import { Category } from '../../contexts/CategoryContext';
-import { useSubscription } from '../../hooks/useSubscription';
+
+interface CreditCard {
+  id: string;
+  name: string;
+  lastFourDigits?: string;
+}
 
 interface NewTransactionModalProps {
   isOpen: boolean;
@@ -28,27 +35,55 @@ export default function NewTransactionModal({
   const [amount, setAmount] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [bankAccountId, setBankAccountId] = useState<string | undefined>(undefined);
+  const [selectedCardId, setSelectedCardId] = useState<string>('');
+  const [creditCards, setCreditCards] = useState<CreditCard[]>([]);
+  const [paymentMethod, setPaymentMethod] = useState<'card' | 'pix'>('card');
   
-  // Simplificado por enquanto - no futuro, isso pode ser um campo no form
-  // const [paymentMethod, setPaymentMethod] = useState<'pix' | 'dinheiro' | 'debito' | 'credito'>('pix');
-  // const [bankAccountId, setBankAccountId] = useState('');
-  
-  const { accounts } = useBankAccounts();
+  const { user } = useAuth();
   const { subscription } = useSubscription();
   const isFreePlan = subscription?.plan === 'free';
   const isEditMode = !!transactionToEdit;
 
-  useState(() => {
+  // Carregar cartões de crédito
+  useEffect(() => {
+    const fetchCreditCards = async () => {
+      if (!user) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('credit_cards')
+          .select('id, name, last_four_digits')
+          .eq('user_id', user.id);
+          
+        if (error) throw error;
+        
+        setCreditCards(data.map(card => ({
+          id: card.id,
+          name: card.name,
+          lastFourDigits: card.last_four_digits
+        })));
+      } catch (error) {
+        console.error('Erro ao buscar cartões:', error);
+      }
+    };
+    
+    if (isOpen) {
+      fetchCreditCards();
+    }
+  }, [isOpen, user]);
+
+  useEffect(() => {
     if (isEditMode && transactionToEdit) {
       setType(transactionToEdit.type);
       setDescription(transactionToEdit.description);
       setAmount(String(transactionToEdit.amount));
       setCategoryId(transactionToEdit.category_id);
       setDate(new Date(transactionToEdit.date).toISOString().split('T')[0]);
-      setBankAccountId(transactionToEdit.bank_id);
+      setSelectedCardId(transactionToEdit.bank_id || '');
+      // Se tem bank_id, é cartão, senão é PIX
+      setPaymentMethod(transactionToEdit.bank_id ? 'card' : 'pix');
     }
-  });
+  }, [isEditMode, transactionToEdit]);
 
   if (!isOpen) return null;
 
@@ -60,17 +95,12 @@ export default function NewTransactionModal({
       return;
     }
 
-    if (type === 'expense' && !isFreePlan && !bankAccountId) {
-      alert("Por favor, selecione uma conta para pagar a despesa.");
-      return;
-    }
-
     onSubmit({
       type,
       description,
       amount: Number(amount),
       date,
-      bank_id: bankAccountId,
+      bank_id: paymentMethod === 'card' ? selectedCardId || undefined : undefined,
       category_id: categoryId,
     });
 
@@ -80,7 +110,8 @@ export default function NewTransactionModal({
     setAmount('');
     setCategoryId('');
     setDate(new Date().toISOString().split('T')[0]);
-    setBankAccountId(undefined);
+    setSelectedCardId('');
+    setPaymentMethod('card');
     onClose();
   };
 
@@ -127,12 +158,12 @@ export default function NewTransactionModal({
                 type="button"
                 className={`
                   flex items-center gap-2 justify-center p-4 rounded-lg border-2 transition-colors
-                  ${type === 'income' // Corrigido
+                  ${type === 'income' 
                     ? 'border-success-600 bg-success-50 text-success-600 dark:border-success-400 dark:bg-success-900/30 dark:text-success-400'
                     : 'border-gray-200 hover:border-success-600 dark:border-gray-700 dark:hover:border-success-400'
                   }
                 `}
-                onClick={() => setType('income')} // Corrigido
+                onClick={() => setType('income')}
               >
                 <ArrowDownLeft className="h-5 w-5" />
                 Entrada
@@ -141,12 +172,12 @@ export default function NewTransactionModal({
                 type="button"
                 className={`
                   flex items-center gap-2 justify-center p-4 rounded-lg border-2 transition-colors
-                  ${type === 'expense' // Corrigido
+                  ${type === 'expense'
                     ? 'border-error-600 bg-error-50 text-error-600 dark:border-error-400 dark:bg-error-900/30 dark:text-error-400'
                     : 'border-gray-200 hover:border-error-600 dark:border-gray-700 dark:hover:border-error-400'
                   }
                 `}
-                onClick={() => setType('expense')} // Corrigido
+                onClick={() => setType('expense')}
               >
                 <ArrowUpRight className="h-5 w-5" />
                 Saída
@@ -184,13 +215,13 @@ export default function NewTransactionModal({
                 </span>
                 <Input
                   id="amount"
-                  type="number"
-                  step="0.01"
-                  min="0"
                   placeholder="0,00"
                   className="pl-10"
                   value={amount}
-                  onChange={handleAmountChange}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, '');
+                    setAmount(value);
+                  }}
                   required
                 />
               </div>
@@ -221,25 +252,48 @@ export default function NewTransactionModal({
               </Select>
             </div>
 
-            {/* Conta Bancária (para despesas) */}
-            {type === 'expense' && !isFreePlan && (
+            {/* Método de Pagamento (para despesas) */}
+            {type === 'expense' && (
               <div className="space-y-2">
-                <label htmlFor="bankAccountId" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Pagar com
+                <label htmlFor="paymentMethod" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Método de Pagamento (opcional)
                 </label>
-                <Select
-                  id="bankAccountId"
-                  value={bankAccountId || ''}
-                  onChange={(e) => setBankAccountId(e.target.value)}
-                  required={!isFreePlan}
-                >
-                  <option value="">Selecione uma conta</option>
-                  {accounts.map(acc => (
-                    <option key={acc.id} value={acc.id}>
-                      {acc.bankName}
-                    </option>
-                  ))}
-                </Select>
+                
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <button
+                    type="button"
+                    className={`py-2 px-4 text-sm rounded-md ${paymentMethod === 'card' 
+                      ? 'bg-primary-100 text-primary-800 dark:bg-primary-900 dark:text-primary-200' 
+                      : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'}`}
+                    onClick={() => setPaymentMethod('card')}
+                  >
+                    Cartão de Crédito
+                  </button>
+                  <button
+                    type="button"
+                    className={`py-2 px-4 text-sm rounded-md ${paymentMethod === 'pix' 
+                      ? 'bg-primary-100 text-primary-800 dark:bg-primary-900 dark:text-primary-200' 
+                      : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'}`}
+                    onClick={() => setPaymentMethod('pix')}
+                  >
+                    PIX
+                  </button>
+                </div>
+                
+                {paymentMethod === 'card' && (
+                  <Select
+                    id="cardId"
+                    value={selectedCardId}
+                    onChange={(e) => setSelectedCardId(e.target.value)}
+                  >
+                    <option value="">Selecione um cartão</option>
+                    {creditCards.map(card => (
+                      <option key={card.id} value={card.id}>
+                        {card.name} {card.lastFourDigits ? `(${card.lastFourDigits})` : ''}
+                      </option>
+                    ))}
+                  </Select>
+                )}
               </div>
             )}
 

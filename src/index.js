@@ -1,6 +1,16 @@
-const { Client } = require('whatsapp-web.js');
-const qrcode = require('qrcode-terminal');
-const FinanceAgent = require('./agent');
+import dotenv from 'dotenv';
+import path from 'path';
+import qrcode from 'qrcode-terminal';
+import { fileURLToPath } from 'url';
+import { Client } from 'whatsapp-web.js';
+import FinanceAgent from './agent/bot.js';
+
+// Obter o diretório atual para ES Modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Configurar dotenv com caminho relativo
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 // Configuração do Supabase
 const supabaseUrl = process.env.SUPABASE_URL;

@@ -1,8 +1,8 @@
 // console.log('useSubscription.ts: ARQUIVO SENDO CARREGADO NO NAVEGADOR - INÍCIO'); // LOG DE TESTE
+import { User } from '@supabase/supabase-js'; // Importar User se já não estiver
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Database } from '../types/supabase';
-import { User } from '@supabase/supabase-js'; // Importar User se já não estiver
 import { useAuth } from './useAuth';
 
 export type SubscriptionPlan = Database["public"]["Enums"]["subscription_plan"];
@@ -45,7 +45,22 @@ export function useSubscription() {
   }, [hookUserId]);
 
   useEffect(() => {
-    fetchSubscription();
+    // Limpar qualquer cache antes de buscar a assinatura
+    const refreshData = async () => {
+      try {
+        // Força uma atualização explícita do token de autenticação
+        await supabase.auth.refreshSession();
+        console.log('Sessão atualizada, buscando assinatura atualizada...');
+        
+        // Agora buscar os dados atualizados
+        fetchSubscription();
+      } catch (error) {
+        console.error('Erro ao atualizar sessão:', error);
+        fetchSubscription();
+      }
+    };
+    
+    refreshData();
   }, [fetchSubscription]);
 
   const createTrialSubscription = async (passedInUser?: User | null) => {

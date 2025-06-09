@@ -1,8 +1,11 @@
-import { useState } from 'react';
-import { Bell, Plus, AlertTriangle, TrendingUp, TrendingDown, DollarSign, Calendar, Trash2 } from 'lucide-react';
-import Button from '../../components/ui/Button';
+import { AlertTriangle, Bell, Calendar, DollarSign, Plus, Trash2, TrendingDown, TrendingUp } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 import NewAlertDialog, { AlertTypeOptionValue } from '../../components/alerts/NewAlertDialog';
+import Button from '../../components/ui/Button';
+import { useAuth } from '../../hooks/useAuth';
 import { useSubscription } from '../../hooks/useSubscription';
+import { supabase } from '../../lib/supabase';
 
 const alertTypeMapping: Record<AlertTypeOptionValue, Alert['type']> = {
   expense: 'expense',
@@ -19,72 +22,101 @@ interface Alert {
   type: 'expense' | 'income' | 'balance' | 'goal' | 'bill';
   status: 'active' | 'disabled';
   condition: string;
-  createdAt: string;
-  nextCheck: string;
+  created_at: string;
+  next_check: string;
+  user_id: string;
 }
 
-const mockAlerts: Alert[] = [
-  {
-    id: '1',
-    title: 'Limite de gastos',
-    description: 'Alerta quando os gastos mensais ultrapassarem R$ 3.000',
-    type: 'expense',
-    status: 'active',
-    condition: 'monthly_expense > 3000',
-    createdAt: '2024-03-15',
-    nextCheck: '2024-04-01'
-  },
-  {
-    id: '2',
-    title: 'Saldo baixo',
-    description: 'Alerta quando o saldo da conta ficar abaixo de R$ 1.000',
-    type: 'balance',
-    status: 'active',
-    condition: 'balance < 1000',
-    createdAt: '2024-03-10',
-    nextCheck: '2024-03-20'
-  },
-  {
-    id: '3',
-    title: 'Fatura do cartão',
-    description: 'Lembrete 5 dias antes do vencimento da fatura',
-    type: 'bill',
-    status: 'active',
-    condition: 'credit_card_due_date - 5 days',
-    createdAt: '2024-02-28',
-    nextCheck: '2024-03-25'
-  }
-];
-
-const BASICO_ALERTS_LIMIT = 10;
+const BASICO_ALERTS_LIMIT = 3;
 
 export default function AlertsPage() {
-  const [alerts, setAlerts] = useState<Alert[]>(mockAlerts);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isNewAlertDialogOpen, setIsNewAlertDialogOpen] = useState(false);
   const { subscription } = useSubscription();
+  const { user } = useAuth();
   const userPlan = subscription?.plan;
 
-  const handleNewAlertSubmit = (data: {
+  useEffect(() => {
+    const fetchAlerts = async () => {
+      if (!user) return;
+      
+      try {
+        setIsLoading(true);
+        const { data, error } = await supabase
+          .from('alerts')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+          
+        if (error) throw error;
+        setAlerts(data || []);
+      } catch (error) {
+        console.error('Erro ao buscar alertas:', error);
+        toast.error('Não foi possível carregar seus alertas');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchAlerts();
+  }, [user]);
+
+  const handleNewAlertSubmit = async (data: {
     title: string;
     description: string;
     type: AlertTypeOptionValue;
   }) => {
-    const newAlert: Alert = {
-      id: String(Date.now()),
+    if (!user) return;
+    
+    try {
+      const nextCheckDate = new Date();
+      nextCheckDate.setDate(nextCheckDate.getDate() + 7);
+      
+      const newAlert = {
       title: data.title,
       description: data.description,
       type: alertTypeMapping[data.type],
       status: 'active',
       condition: 'N/A',
-      createdAt: new Date().toISOString().split('T')[0],
-      nextCheck: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    };
-    setAlerts(prevAlerts => [newAlert, ...prevAlerts]);
+        user_id: user.id,
+        created_at: new Date().toISOString(),
+        next_check: nextCheckDate.toISOString(),
+      };
+      
+      const { data: insertedAlert, error } = await supabase
+        .from('alerts')
+        .insert(newAlert)
+        .select()
+        .single();
+        
+      if (error) throw error;
+      
+      setAlerts(prevAlerts => [insertedAlert, ...prevAlerts]);
+      toast.success('Alerta criado com sucesso!');
+    } catch (error) {
+      console.error('Erro ao criar alerta:', error);
+      toast.error('Não foi possível criar o alerta');
+    } finally {
     setIsNewAlertDialogOpen(false);
+    }
   };
 
-  const handleDeleteAlert = (alertId: string) => {
+  const handleDeleteAlert = async (alertId: string) => {
+    try {
+      const { error } = await supabase
+        .from('alerts')
+        .delete()
+        .eq('id', alertId);
+        
+      if (error) throw error;
+      
     setAlerts(prevAlerts => prevAlerts.filter(alert => alert.id !== alertId));
+      toast.success('Alerta excluído com sucesso!');
+    } catch (error) {
+      console.error('Erro ao excluir alerta:', error);
+      toast.error('Não foi possível excluir o alerta');
+    }
   };
 
   const isBasicoPlan = userPlan === 'basic';
@@ -110,6 +142,14 @@ export default function AlertsPage() {
     return new Date(dateString).toLocaleDateString('pt-BR');
   };
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -131,6 +171,15 @@ export default function AlertsPage() {
         </p>
       )}
 
+      {alerts.length === 0 ? (
+        <div className="text-center py-10">
+          <Bell className="h-12 w-12 mx-auto text-gray-400" />
+          <h3 className="mt-2 text-lg font-medium text-gray-900 dark:text-white">Nenhum alerta configurado</h3>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Configure alertas para receber notificações sobre suas finanças
+          </p>
+        </div>
+      ) : (
       <div className="grid gap-4">
         {alerts.map((alert) => (
           <div
@@ -169,15 +218,16 @@ export default function AlertsPage() {
                   {alert.description}
                 </p>
                 <div className="mt-2 flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
-                  <span>Criado em: {formatDate(alert.createdAt)}</span>
+                    <span>Criado em: {formatDate(alert.created_at)}</span>
                   <span>•</span>
-                  <span>Próxima verificação: {formatDate(alert.nextCheck)}</span>
+                    <span>Próxima verificação: {formatDate(alert.next_check)}</span>
                 </div>
               </div>
             </div>
           </div>
         ))}
       </div>
+      )}
 
       {isNewAlertDialogOpen && (
         <NewAlertDialog
