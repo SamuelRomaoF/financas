@@ -1,6 +1,48 @@
-# Finanças Simplificadas
+# Sistema de Finanças Pessoais
 
-Aplicação para gerenciamento de finanças pessoais.
+Este é um sistema de gestão de finanças pessoais desenvolvido para ajudar usuários a controlar gastos, receitas e orçamentos.
+
+## Funcionalidades
+
+- Registro de transações (receitas e despesas)
+- Categorização de gastos
+- Contas bancárias múltiplas
+- Relatórios e análises financeiras
+- Dashboard personalizado
+
+## Instalação
+
+1. Clone o repositório
+2. Instale as dependências: `npm install`
+3. Configure as variáveis de ambiente
+4. Execute o projeto: `npm run dev`
+
+## Resolução de Problemas
+
+### Erro ao criar ou editar transações
+
+Se você encontrar erros ao criar ou editar transações, especialmente relacionados à chave estrangeira `transactions_bank_id_fkey`, execute o script SQL de correção:
+
+1. Acesse o painel de administração do Supabase
+2. Vá para a seção SQL Editor
+3. Copie e cole o conteúdo do arquivo `supabase/fix_transactions_bank_id.sql`
+4. Execute o script
+
+Este script garante que:
+
+- A coluna `bank_id` na tabela `transactions` permita valores nulos
+- A restrição de chave estrangeira esteja configurada corretamente
+- Transações possam ser criadas sem necessidade de associação a uma conta bancária
+
+### Outros problemas comuns
+
+- **Erro 409 (Conflict)**: Geralmente relacionado a violações de chave estrangeira. Verifique se todos os campos obrigatórios estão preenchidos corretamente.
+- **Transações não aparecem**: Verifique se o filtro de data está configurado corretamente no dashboard.
+- **Saldo incorreto**: As atualizações de saldo são feitas automaticamente quando uma transação é criada, atualizada ou excluída. Se o saldo parecer incorreto, verifique se todas as transações estão devidamente registradas.
+
+## Contribuição
+
+Sinta-se à vontade para contribuir com este projeto através de pull requests.
 
 ## Implantação no Vercel
 
@@ -9,6 +51,7 @@ Para implantar este projeto no Vercel, siga estas etapas:
 ### Opção 1: Usando o assistente de implantação
 
 1. Execute o assistente de implantação:
+
    ```bash
    npm run deploy:wizard
    ```
@@ -20,16 +63,19 @@ Para implantar este projeto no Vercel, siga estas etapas:
 1. Crie uma conta no [Vercel](https://vercel.com) se ainda não tiver uma.
 
 2. Instale a CLI do Vercel:
+
    ```bash
    npm i -g vercel
    ```
 
 3. Faça login na sua conta Vercel:
+
    ```bash
    vercel login
    ```
 
 4. Configure as variáveis de ambiente no Vercel:
+
    - Acesse o dashboard do Vercel
    - Selecione seu projeto
    - Vá para "Settings" > "Environment Variables"
@@ -39,6 +85,7 @@ Para implantar este projeto no Vercel, siga estas etapas:
      - `VITE_SUPABASE_SERVICE_ROLE_KEY`: Chave de serviço do Supabase
 
 5. Implante o projeto:
+
    ```bash
    vercel
    ```
@@ -53,11 +100,13 @@ Para implantar este projeto no Vercel, siga estas etapas:
 1. Clone o repositório
 
 2. Instale as dependências:
+
    ```bash
    npm install
    ```
 
 3. Crie um arquivo `.env` na raiz do projeto com as seguintes variáveis:
+
    ```
    VITE_SUPABASE_URL=sua_url_supabase
    VITE_SUPABASE_ANON_KEY=sua_chave_anon_supabase
@@ -80,6 +129,7 @@ Se você estiver enfrentando problemas ao adicionar contas bancárias mesmo apó
 5. Execute a consulta
 
 O script irá corrigir o problema de limite de contas bancárias, permitindo:
+
 - Plano Free: 1 conta
 - Plano Basic: 3 contas
 - Plano Premium: 5 contas
@@ -99,6 +149,7 @@ O bot WhatsApp não funcionará no ambiente do Vercel devido às limitações do
 ### Comandos do Bot
 
 O bot suporta os seguintes comandos:
+
 - `/vincular` - Vincular seu WhatsApp à conta
 - `/gasto [valor] [categoria]` - Registrar um gasto
 - `/receita [valor] [categoria]` - Registrar uma receita
@@ -148,4 +199,4 @@ CREATE INDEX IF NOT EXISTS transactions_bank_id_idx ON public.transactions(bank_
 - Visualização de saldo atual
 - Histórico de transações por conta
 - Filtragem de transações
-- Categorização de despesas e receitas 
+- Categorização de despesas e receitas

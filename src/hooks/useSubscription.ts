@@ -45,23 +45,14 @@ export function useSubscription() {
   }, [hookUserId]);
 
   useEffect(() => {
-    // Limpar qualquer cache antes de buscar a assinatura
-    const refreshData = async () => {
-      try {
-        // Força uma atualização explícita do token de autenticação
-        await supabase.auth.refreshSession();
-        console.log('Sessão atualizada, buscando assinatura atualizada...');
-        
-        // Agora buscar os dados atualizados
-        fetchSubscription();
-      } catch (error) {
-        console.error('Erro ao atualizar sessão:', error);
-        fetchSubscription();
-      }
-    };
-    
-    refreshData();
-  }, [fetchSubscription]);
+    // Buscar a assinatura apenas quando o usuário mudar, sem forçar refresh da sessão
+    if (hookUserId) {
+      fetchSubscription();
+    } else {
+      setSubscription(null);
+      setLoading(false);
+    }
+  }, [hookUserId, fetchSubscription]);
 
   const createTrialSubscription = async (passedInUser?: User | null) => {
     const userIdToUse = passedInUser?.id;

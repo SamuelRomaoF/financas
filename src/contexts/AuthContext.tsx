@@ -42,19 +42,38 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   useEffect(() => {
-    // Verifica se já existe uma sessão
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      updateUser(session);
-      setLoading(false);
-    });
+    // Verifica se já existe uma sessão, mas limita a frequência das chamadas
+    let isSessionFetched = false;
+    
+    const getInitialSession = async () => {
+      if (isSessionFetched) return;
+      isSessionFetched = true;
+      
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        updateUser(session);
+      } catch (error) {
+        console.error("Erro ao buscar sessão inicial:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    getInitialSession();
 
-    // Escuta mudanças na autenticação
+    // Escuta mudanças na autenticação, mas com throttling
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      updateUser(session);
+      // Apenas atualiza o usuário se houve mudança real
+      const currentUserId = user?.id;
+      const newUserId = session?.user?.id;
+      
+      if (currentUserId !== newUserId) {
+        updateUser(session);
+      }
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [user?.id]);
 
   const checkUserSubscription = async () => {
     if (!user) return false;

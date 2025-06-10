@@ -198,20 +198,25 @@ export default class FinanceAgent {
             }
             
             // Funcionalidades básicas (disponíveis para todos)
-        if (this.isGasto(msgLower)) {
+            if (this.isGasto(msgLower)) {
                 console.log('[DEBUG] Detectou gasto');
-            return this.processarGasto(userId, message);
-        }
+                return this.processarGasto(userId, message);
+            }
 
-        if (this.isConsultaSaldo(msgLower)) {
+            if (this.isConsultaSaldo(msgLower)) {
                 console.log('[DEBUG] Detectou consulta de saldo');
-            return this.handleBalance(userId);
-        }
+                return this.handleBalance(userId);
+            }
 
-        if (this.isConsultaCategorias(msgLower)) {
+            if (this.isConsultaCategorias(msgLower)) {
                 console.log('[DEBUG] Detectou consulta de categorias');
-            return this.handleCategories(userId);
-        }
+                return this.handleCategories(userId);
+            }
+
+            if (this.isCriarCategoria(msgLower)) {
+                console.log('[DEBUG] Detectou criação de categoria');
+                return this.criarCategoria(userId, message);
+            }
 
             if (this.isConsultaVinculo(msgLower)) {
                 console.log('[DEBUG] Detectou consulta de vínculo');
@@ -232,9 +237,9 @@ export default class FinanceAgent {
 
             // Funcionalidades do plano básico
             if (userPlan === 'basic' || userPlan === 'premium') {
-        if (this.isConsultaRelatorio(msgLower)) {
+                if (this.isConsultaRelatorio(msgLower)) {
                     console.log('[DEBUG] Detectou consulta de relatório');
-            return this.handleReport(userId);
+                    return this.handleReport(userId);
                 }
             }
 
@@ -254,9 +259,25 @@ export default class FinanceAgent {
                     console.log('[DEBUG] Detectou consulta de metas');
                     return this.handleGoals(userId, message);
                 }
-        }
+                
+                // Novas funcionalidades premium para criar cartões e contas
+                if (this.isCriarCartao(msgLower)) {
+                    console.log('[DEBUG] Detectou criação de cartão de crédito');
+                    return this.criarCartao(userId, message);
+                }
+                
+                if (this.isCriarContaBancaria(msgLower)) {
+                    console.log('[DEBUG] Detectou criação de conta bancária');
+                    return this.criarContaBancaria(userId, message);
+                }
+            } else if (this.isCriarCartao(msgLower) || this.isCriarContaBancaria(msgLower)) {
+                // Se não é premium mas tentou criar cartão ou conta
+                return `Esta funcionalidade está disponível apenas para usuários do plano Premium. 
 
-        // Se chegou aqui, é uma mensagem genérica
+Para fazer upgrade do seu plano e poder criar cartões e contas bancárias pelo WhatsApp, digite "upgrade".`;
+            }
+
+            // Se chegou aqui, é uma mensagem genérica
             console.log('[DEBUG] Mensagem genérica, retornando boas-vindas');
             return this.getWelcomeMessage(userId);
         } catch (error) {
@@ -274,6 +295,7 @@ export default class FinanceAgent {
         welcomeMessage += `📝 Registrar gastos (ex: "gastei 20 no uber")\n`;
         welcomeMessage += `💰 Ver seu saldo (ex: "mostrar saldo")\n`;
         welcomeMessage += `📋 Listar categorias (ex: "ver categorias")\n`;
+        welcomeMessage += `➕ Criar categorias (ex: "criar categoria Restaurantes")\n`;
         welcomeMessage += `💸 Registrar receitas (ex: "recebi 2000 de salário")\n`;
         
         if (userPlan === 'free') {
@@ -285,6 +307,8 @@ export default class FinanceAgent {
             welcomeMessage += `\n📊 Pedir um relatório (ex: "me mostra o resumo do mês")\n`;
             welcomeMessage += `📈 Consultar investimentos (ex: "mostrar investimentos")\n`;
             welcomeMessage += `💳 Ver cartões de crédito (ex: "mostrar cartões")\n`;
+            welcomeMessage += `💳 Criar cartão de crédito (ex: "criar cartão Nubank")\n`;
+            welcomeMessage += `🏦 Criar conta bancária (ex: "criar conta Itaú")\n`;
             welcomeMessage += `🎯 Gerenciar metas (ex: "minhas metas")\n`;
             welcomeMessage += `\nVocê está no plano PREMIUM. Aproveite todos os recursos!`;
         }
@@ -300,23 +324,26 @@ export default class FinanceAgent {
                 `✅ Registrar gastos\n` +
                 `✅ Consultar seu saldo\n` +
                 `✅ Listar categorias\n` +
+                `✅ Criar categorias\n` +
                 `✅ Registrar receitas\n\n` +
                 `Para ter acesso a relatórios e mais funcionalidades, faça upgrade para o plano BASIC ou PREMIUM.`;
         } else if (userPlan === 'basic') {
             planMessage = `No plano BASIC você pode:\n` +
                 `✅ Registrar gastos e receitas\n` +
                 `✅ Consultar seu saldo\n` +
-                `✅ Listar categorias\n` +
+                `✅ Listar e criar categorias\n` +
                 `✅ Gerar relatórios detalhados\n\n` +
                 `Para ter acesso a investimentos, cartões de crédito e metas, faça upgrade para o plano PREMIUM.`;
         } else if (userPlan === 'premium') {
             planMessage = `No plano PREMIUM você tem acesso a todas as funcionalidades:\n` +
                 `✅ Registrar gastos e receitas\n` +
                 `✅ Consultar seu saldo\n` +
-                `✅ Listar categorias\n` +
+                `✅ Listar e criar categorias\n` +
                 `✅ Gerar relatórios detalhados\n` +
                 `✅ Gerenciar investimentos\n` +
                 `✅ Controlar cartões de crédito\n` +
+                `✅ Criar cartões de crédito pelo WhatsApp\n` +
+                `✅ Criar contas bancárias pelo WhatsApp\n` +
                 `✅ Definir e acompanhar metas financeiras`;
         }
         
@@ -359,6 +386,7 @@ export default class FinanceAgent {
                     '📝 Registrar gastos (ex: "gastei 20 no uber")\n' +
                     '💰 Ver seu saldo (ex: "mostrar saldo")\n' +
                     '🏷️ Listar categorias (ex: "ver categorias")\n' +
+                    '➕ Criar categorias (ex: "criar categoria Restaurantes")\n' +
                     '💸 Registrar receitas (ex: "recebi 2000 de salário")\n';
 
         if (plano === 'basic' || plano === 'premium') {
@@ -368,6 +396,8 @@ export default class FinanceAgent {
         if (plano === 'premium') {
             mensagem += '📈 Consultar investimentos (ex: "meus investimentos")\n' +
                         '💳 Gerenciar cartões (ex: "fatura do cartão")\n' +
+                        '💳 Criar cartão de crédito (ex: "criar cartão Nubank")\n' +
+                        '🏦 Criar conta bancária (ex: "criar conta Itaú")\n' +
                         '🎯 Acompanhar metas (ex: "minhas metas")\n';
         }
 
@@ -493,19 +523,88 @@ export default class FinanceAgent {
     }
 
     isGasto(msg) {
-        // Verificação simplificada focada em casos comuns
-        if (msg.includes('gastei') && /\d+/.test(msg)) {
-            console.log('[DEBUG] isGasto - Detectou padrão "gastei + número"');
-            return true;
+        // Padrões para detecção de gastos
+        const gastoPatterns = [
+            // Padrões com "gastei"
+            { pattern: /gastei\s+\d+/, description: 'gastei + número' },
+            { pattern: /gastei\s+r?\$?\s*\d+/, description: 'gastei + R$ + número' },
+            
+            // Padrões com "gasto"
+            { pattern: /gasto\s+\d+/, description: 'gasto + número' },
+            { pattern: /gasto\s+de\s+\d+/, description: 'gasto de + número' },
+            
+            // Padrões com "paguei"
+            { pattern: /paguei\s+\d+/, description: 'paguei + número' },
+            { pattern: /paguei\s+r?\$?\s*\d+/, description: 'paguei + R$ + número' },
+            
+            // Padrões com "comprei"
+            { pattern: /comprei\s+\w+\s+por\s+\d+/, description: 'comprei algo por + número' },
+            { pattern: /comprei\s+\w+\s+de\s+\d+/, description: 'comprei algo de + número' },
+            { pattern: /comprei\s+\d+/, description: 'comprei + número' },
+            
+            // Padrões com "fiz"
+            { pattern: /fiz\s+uma\s+compra\s+de\s+\d+/, description: 'fiz uma compra de + número' },
+            { pattern: /fiz\s+um\s+gasto\s+de\s+\d+/, description: 'fiz um gasto de + número' },
+            
+            // Padrões com "usei"
+            { pattern: /usei\s+\d+/, description: 'usei + número' },
+            { pattern: /usei\s+o\s+cartão\s+\w+\s+\d+/, description: 'usei o cartão + número' },
+            { pattern: /usei\s+r?\$?\s*\d+/, description: 'usei + R$ + número' },
+            
+            // Padrões com verbos alternativos
+            { pattern: /desembolsei\s+\d+/, description: 'desembolsei + número' },
+            { pattern: /investi\s+\d+/, description: 'investi + número' },
+            { pattern: /torrei\s+\d+/, description: 'torrei + número' },
+            { pattern: /coloquei\s+\d+/, description: 'coloquei + número' },
+            { pattern: /passei\s+\d+\s+no\s+cartão/, description: 'passei + número + no cartão' },
+            { pattern: /passei\s+no\s+cartão\s+\d+/, description: 'passei no cartão + número' },
+            
+            // Padrões com "foi"
+            { pattern: /foi\s+\d+\s+reais/, description: 'foi + número + reais' },
+            { pattern: /foram\s+\d+\s+reais/, description: 'foram + número + reais' },
+            
+            // Padrões com "saiu"
+            { pattern: /saiu\s+\d+/, description: 'saiu + número' },
+            { pattern: /saiu\s+por\s+\d+/, description: 'saiu por + número' },
+            
+            // Padrões com "custou"
+            { pattern: /custou\s+\d+/, description: 'custou + número' },
+            { pattern: /custou\s+r?\$?\s*\d+/, description: 'custou + R$ + número' },
+            
+            // Padrões com "conta"
+            { pattern: /conta\s+de\s+\d+/, description: 'conta de + número' },
+            { pattern: /conta\s+foi\s+\d+/, description: 'conta foi + número' },
+            
+            // Padrões com "valor"
+            { pattern: /valor\s+de\s+\d+/, description: 'valor de + número' },
+            { pattern: /valor\s+foi\s+\d+/, description: 'valor foi + número' },
+            
+            // Padrões com "R$"
+            { pattern: /r\$\s*\d+/, description: 'R$ + número' }
+        ];
+        
+        // Verificar se a mensagem contém algum dos padrões de gasto
+        for (const { pattern, description } of gastoPatterns) {
+            if (pattern.test(msg)) {
+                console.log(`[DEBUG] isGasto - Detectou padrão "${description}"`);
+                return true;
+            }
         }
         
-        if (msg.includes('gasto') && /\d+/.test(msg)) {
-            console.log('[DEBUG] isGasto - Detectou padrão "gasto + número"');
-            return true;
-        }
+        // Verificar palavras-chave específicas
+        const gastoKeywords = [
+            'despesa', 'débito', 'debito', 'boleto', 'fatura',
+            'pagamento', 'compra', 'gastar', 'gasto', 'gastei', 
+            'paguei', 'comprei', 'conta', 'mercado', 'supermercado',
+            'farmácia', 'farmacia', 'restaurante', 'lanche', 'combustível',
+            'combustivel', 'uber', '99', 'táxi', 'taxi', 'transporte',
+            'academia', 'mensalidade', 'assinatura', 'netflix', 'spotify',
+            'amazon', 'ifood', 'rappi', 'delivery'
+        ];
         
-        if (msg.includes('paguei') && /\d+/.test(msg)) {
-            console.log('[DEBUG] isGasto - Detectou padrão "paguei + número"');
+        // Se contém uma palavra-chave de gasto E um número, provavelmente é um gasto
+        if (gastoKeywords.some(keyword => msg.includes(keyword)) && /\d+/.test(msg)) {
+            console.log('[DEBUG] isGasto - Detectou palavra-chave de gasto + número');
             return true;
         }
         
@@ -515,20 +614,180 @@ export default class FinanceAgent {
 
     isConsultaSaldo(msg) {
         const saldoIndicators = [
-            'saldo', 'quanto tenho', 'quanto tem', 'disponível',
-            'disponivel', 'conta', 'extrato', 'mostrar saldo',
-            'ver saldo', 'qual o saldo', 'quanto sobrou'
+            'saldo', 'quanto tenho', 'quanto tem', 'disponível', 'disponivel',
+            'conta', 'extrato', 'mostrar saldo', 'ver saldo', 'qual o saldo',
+            'quanto sobrou', 'quanto há', 'quanto há na conta', 'quanto tem na conta',
+            'dinheiro', 'grana', 'bufunfa', 'quanto eu tenho', 'meu saldo',
+            'minha conta', 'nas contas', 'na conta', 'no banco', 'meu dinheiro',
+            'minha grana', 'quanto ainda tenho', 'sobrou quanto', 'restou quanto',
+            'balanço atual', 'balanco atual', 'situação atual', 'situacao atual',
+            'como estou de grana', 'como estou de dinheiro', 'posição atual', 'posicao atual',
+            'quanto está disponível', 'quanto esta disponivel', 'total disponível', 'total disponivel'
         ];
         return saldoIndicators.some(indicator => msg.includes(indicator));
     }
 
     isConsultaCategorias(msg) {
         const categoriasIndicators = [
-            'categoria', 'categorias', 'tipos de gasto',
-            'tipos de despesa', 'onde posso gastar', 'quais categorias',
-            'lista de categorias'
+            'categoria', 'categorias', 'tipos de gasto', 'tipos de despesa',
+            'onde posso gastar', 'quais categorias', 'lista de categorias',
+            'mostrar categorias', 'ver categorias', 'listar categorias',
+            'quais são as categorias', 'quais sao as categorias', 'categorias disponíveis',
+            'categorias disponiveis', 'me mostra as categorias', 'categorias de gasto',
+            'categorias de despesa', 'categorias cadastradas', 'minhas categorias',
+            'categorias existentes', 'tipos de despesa', 'tipos de gasto',
+            'classificação', 'classificacao', 'tipos de transação', 'tipos de transacao'
         ];
         return categoriasIndicators.some(indicator => msg.includes(indicator));
+    }
+
+    isCriarCategoria(msg) {
+        // Padrões para detecção de solicitação de criação de categoria
+        const criarCategoriaPatterns = [
+            // Padrões com "criar"
+            { pattern: /cri[ae]r\s+(uma\s+)?(nova\s+)?categoria/i, description: 'criar categoria' },
+            { pattern: /cri[ae]r\s+(uma\s+)?(nova\s+)?categoria\s+(\w+)/i, description: 'criar categoria nome' },
+            { pattern: /cri[ae]r\s+(uma\s+)?(nova\s+)?categoria\s+de\s+(\w+)/i, description: 'criar categoria de nome' },
+            
+            // Padrões com "adicionar"
+            { pattern: /adicionar\s+(uma\s+)?(nova\s+)?categoria/i, description: 'adicionar categoria' },
+            { pattern: /adicionar\s+(uma\s+)?(nova\s+)?categoria\s+(\w+)/i, description: 'adicionar categoria nome' },
+            { pattern: /adicionar\s+(uma\s+)?(nova\s+)?categoria\s+de\s+(\w+)/i, description: 'adicionar categoria de nome' },
+            
+            // Padrões com "nova"
+            { pattern: /nova\s+categoria\s+(\w+)/i, description: 'nova categoria nome' },
+            { pattern: /nova\s+categoria\s+de\s+(\w+)/i, description: 'nova categoria de nome' },
+            
+            // Padrões com "cadastrar"
+            { pattern: /cadastrar\s+(uma\s+)?(nova\s+)?categoria/i, description: 'cadastrar categoria' },
+            { pattern: /cadastrar\s+(uma\s+)?(nova\s+)?categoria\s+(\w+)/i, description: 'cadastrar categoria nome' },
+            { pattern: /cadastrar\s+(uma\s+)?(nova\s+)?categoria\s+de\s+(\w+)/i, description: 'cadastrar categoria de nome' },
+            
+            // Padrões com "incluir"
+            { pattern: /incluir\s+(uma\s+)?(nova\s+)?categoria/i, description: 'incluir categoria' },
+            { pattern: /incluir\s+(uma\s+)?(nova\s+)?categoria\s+(\w+)/i, description: 'incluir categoria nome' },
+            { pattern: /incluir\s+(uma\s+)?(nova\s+)?categoria\s+de\s+(\w+)/i, description: 'incluir categoria de nome' }
+        ];
+        
+        // Verificar se a mensagem contém algum dos padrões de criação de categoria
+        for (const { pattern, description } of criarCategoriaPatterns) {
+            if (pattern.test(msg)) {
+                console.log(`[DEBUG] isCriarCategoria - Detectou padrão "${description}"`);
+                return true;
+            }
+        }
+        
+        // Verificar palavras-chave específicas em conjunto
+        if ((msg.includes('categoria') || msg.includes('categorias')) && 
+            (msg.includes('criar') || msg.includes('nova') || msg.includes('adicionar') || 
+             msg.includes('cadastrar') || msg.includes('incluir'))) {
+            console.log('[DEBUG] isCriarCategoria - Detectou palavras-chave de criação de categoria');
+            return true;
+        }
+        
+        return false;
+    }
+
+    isCriarCartao(msg) {
+        // Padrões para detecção de solicitação de criação de cartão de crédito
+        const criarCartaoPatterns = [
+            // Padrões com "criar"
+            { pattern: /cri[ae]r\s+(um\s+)?(novo\s+)?cart[ãa]o/i, description: 'criar cartão' },
+            { pattern: /cri[ae]r\s+(um\s+)?(novo\s+)?cart[ãa]o\s+(\w+)/i, description: 'criar cartão nome' },
+            { pattern: /cri[ae]r\s+(um\s+)?(novo\s+)?cart[ãa]o\s+de\s+cr[ée]dito/i, description: 'criar cartão de crédito' },
+            { pattern: /cri[ae]r\s+(um\s+)?(novo\s+)?cart[ãa]o\s+de\s+cr[ée]dito\s+(\w+)/i, description: 'criar cartão de crédito nome' },
+            
+            // Padrões com "adicionar"
+            { pattern: /adicionar\s+(um\s+)?(novo\s+)?cart[ãa]o/i, description: 'adicionar cartão' },
+            { pattern: /adicionar\s+(um\s+)?(novo\s+)?cart[ãa]o\s+(\w+)/i, description: 'adicionar cartão nome' },
+            { pattern: /adicionar\s+(um\s+)?(novo\s+)?cart[ãa]o\s+de\s+cr[ée]dito/i, description: 'adicionar cartão de crédito' },
+            { pattern: /adicionar\s+(um\s+)?(novo\s+)?cart[ãa]o\s+de\s+cr[ée]dito\s+(\w+)/i, description: 'adicionar cartão de crédito nome' },
+            
+            // Padrões com "novo"
+            { pattern: /novo\s+cart[ãa]o/i, description: 'novo cartão' },
+            { pattern: /novo\s+cart[ãa]o\s+(\w+)/i, description: 'novo cartão nome' },
+            { pattern: /novo\s+cart[ãa]o\s+de\s+cr[ée]dito/i, description: 'novo cartão de crédito' },
+            { pattern: /novo\s+cart[ãa]o\s+de\s+cr[ée]dito\s+(\w+)/i, description: 'novo cartão de crédito nome' },
+            
+            // Padrões com "cadastrar"
+            { pattern: /cadastrar\s+(um\s+)?(novo\s+)?cart[ãa]o/i, description: 'cadastrar cartão' },
+            { pattern: /cadastrar\s+(um\s+)?(novo\s+)?cart[ãa]o\s+(\w+)/i, description: 'cadastrar cartão nome' },
+            { pattern: /cadastrar\s+(um\s+)?(novo\s+)?cart[ãa]o\s+de\s+cr[ée]dito/i, description: 'cadastrar cartão de crédito' },
+            { pattern: /cadastrar\s+(um\s+)?(novo\s+)?cart[ãa]o\s+de\s+cr[ée]dito\s+(\w+)/i, description: 'cadastrar cartão de crédito nome' }
+        ];
+        
+        // Verificar se a mensagem contém algum dos padrões de criação de cartão
+        for (const { pattern, description } of criarCartaoPatterns) {
+            if (pattern.test(msg)) {
+                console.log(`[DEBUG] isCriarCartao - Detectou padrão "${description}"`);
+                return true;
+            }
+        }
+        
+        // Verificar palavras-chave específicas em conjunto
+        if ((msg.includes('cartão') || msg.includes('cartao')) && 
+            (msg.includes('criar') || msg.includes('novo') || msg.includes('adicionar') || 
+             msg.includes('cadastrar'))) {
+            console.log('[DEBUG] isCriarCartao - Detectou palavras-chave de criação de cartão');
+            return true;
+        }
+        
+        return false;
+    }
+
+    isCriarContaBancaria(msg) {
+        // Padrões para detecção de solicitação de criação de conta bancária
+        const criarContaPatterns = [
+            // Padrões com "criar"
+            { pattern: /cri[ae]r\s+(uma\s+)?(nova\s+)?conta/i, description: 'criar conta' },
+            { pattern: /cri[ae]r\s+(uma\s+)?(nova\s+)?conta\s+(\w+)/i, description: 'criar conta nome' },
+            { pattern: /cri[ae]r\s+(uma\s+)?(nova\s+)?conta\s+banc[áa]ria/i, description: 'criar conta bancária' },
+            { pattern: /cri[ae]r\s+(uma\s+)?(nova\s+)?conta\s+banc[áa]ria\s+(\w+)/i, description: 'criar conta bancária nome' },
+            { pattern: /cri[ae]r\s+(um\s+)?(novo\s+)?banco/i, description: 'criar banco' },
+            { pattern: /cri[ae]r\s+(um\s+)?(novo\s+)?banco\s+(\w+)/i, description: 'criar banco nome' },
+            
+            // Padrões com "adicionar"
+            { pattern: /adicionar\s+(uma\s+)?(nova\s+)?conta/i, description: 'adicionar conta' },
+            { pattern: /adicionar\s+(uma\s+)?(nova\s+)?conta\s+(\w+)/i, description: 'adicionar conta nome' },
+            { pattern: /adicionar\s+(uma\s+)?(nova\s+)?conta\s+banc[áa]ria/i, description: 'adicionar conta bancária' },
+            { pattern: /adicionar\s+(uma\s+)?(nova\s+)?conta\s+banc[áa]ria\s+(\w+)/i, description: 'adicionar conta bancária nome' },
+            { pattern: /adicionar\s+(um\s+)?(novo\s+)?banco/i, description: 'adicionar banco' },
+            { pattern: /adicionar\s+(um\s+)?(novo\s+)?banco\s+(\w+)/i, description: 'adicionar banco nome' },
+            
+            // Padrões com "nova"
+            { pattern: /nova\s+conta/i, description: 'nova conta' },
+            { pattern: /nova\s+conta\s+(\w+)/i, description: 'nova conta nome' },
+            { pattern: /nova\s+conta\s+banc[áa]ria/i, description: 'nova conta bancária' },
+            { pattern: /nova\s+conta\s+banc[áa]ria\s+(\w+)/i, description: 'nova conta bancária nome' },
+            { pattern: /novo\s+banco/i, description: 'novo banco' },
+            { pattern: /novo\s+banco\s+(\w+)/i, description: 'novo banco nome' },
+            
+            // Padrões com "cadastrar"
+            { pattern: /cadastrar\s+(uma\s+)?(nova\s+)?conta/i, description: 'cadastrar conta' },
+            { pattern: /cadastrar\s+(uma\s+)?(nova\s+)?conta\s+(\w+)/i, description: 'cadastrar conta nome' },
+            { pattern: /cadastrar\s+(uma\s+)?(nova\s+)?conta\s+banc[áa]ria/i, description: 'cadastrar conta bancária' },
+            { pattern: /cadastrar\s+(uma\s+)?(nova\s+)?conta\s+banc[áa]ria\s+(\w+)/i, description: 'cadastrar conta bancária nome' },
+            { pattern: /cadastrar\s+(um\s+)?(novo\s+)?banco/i, description: 'cadastrar banco' },
+            { pattern: /cadastrar\s+(um\s+)?(novo\s+)?banco\s+(\w+)/i, description: 'cadastrar banco nome' }
+        ];
+        
+        // Verificar se a mensagem contém algum dos padrões de criação de conta
+        for (const { pattern, description } of criarContaPatterns) {
+            if (pattern.test(msg)) {
+                console.log(`[DEBUG] isCriarContaBancaria - Detectou padrão "${description}"`);
+                return true;
+            }
+        }
+        
+        // Verificar palavras-chave específicas em conjunto
+        if ((msg.includes('conta') || msg.includes('banco')) && 
+            (msg.includes('criar') || msg.includes('nova') || msg.includes('novo') || 
+             msg.includes('adicionar') || msg.includes('cadastrar'))) {
+            console.log('[DEBUG] isCriarContaBancaria - Detectou palavras-chave de criação de conta');
+            return true;
+        }
+        
+        return false;
     }
 
     isConsultaRelatorio(msg) {
@@ -557,19 +816,105 @@ export default class FinanceAgent {
     }
 
     isAdicionarReceita(msg) {
-        // Verificação simplificada focada em casos comuns
-        if (msg.includes('recebi') && /\d+/.test(msg)) {
-            console.log('[DEBUG] isAdicionarReceita - Detectou padrão "recebi + número"');
-            return true;
+        // Padrões para detecção de receitas
+        const receitaPatterns = [
+            // Padrões com "recebi"
+            { pattern: /recebi\s+\d+/, description: 'recebi + número' },
+            { pattern: /recebi\s+r?\$?\s*\d+/, description: 'recebi + R$ + número' },
+            { pattern: /recebi\s+\w+\s+de\s+\d+/, description: 'recebi algo de + número' },
+            
+            // Padrões com "ganhei"
+            { pattern: /ganhei\s+\d+/, description: 'ganhei + número' },
+            { pattern: /ganhei\s+r?\$?\s*\d+/, description: 'ganhei + R$ + número' },
+            
+            // Padrões com "salário"
+            { pattern: /sal[aá]rio\s+de\s+\d+/, description: 'salário de + número' },
+            { pattern: /sal[aá]rio\s+\d+/, description: 'salário + número' },
+            { pattern: /meu\s+sal[aá]rio\s+[ée]\s+\d+/, description: 'meu salário é + número' },
+            { pattern: /meu\s+sal[aá]rio\s+foi\s+\d+/, description: 'meu salário foi + número' },
+            
+            // Padrões com "entrou"
+            { pattern: /entrou\s+\d+/, description: 'entrou + número' },
+            { pattern: /entrou\s+r?\$?\s*\d+/, description: 'entrou + R$ + número' },
+            { pattern: /entrou\s+\d+\s+na\s+conta/, description: 'entrou + número + na conta' },
+            { pattern: /entrou\s+\d+\s+no\s+banco/, description: 'entrou + número + no banco' },
+            
+            // Padrões com "depositaram"
+            { pattern: /depositaram\s+\d+/, description: 'depositaram + número' },
+            { pattern: /depositaram\s+r?\$?\s*\d+/, description: 'depositaram + R$ + número' },
+            
+            // Padrões com "depósito"
+            { pattern: /dep[óo]sito\s+de\s+\d+/, description: 'depósito de + número' },
+            { pattern: /dep[óo]sito\s+\d+/, description: 'depósito + número' },
+            
+            // Padrões com "transferência"
+            { pattern: /transfer[êe]ncia\s+de\s+\d+/, description: 'transferência de + número' },
+            { pattern: /transfer[êe]ncia\s+\d+/, description: 'transferência + número' },
+            { pattern: /transferiram\s+\d+/, description: 'transferiram + número' },
+            
+            // Padrões com "pix"
+            { pattern: /pix\s+de\s+\d+/, description: 'pix de + número' },
+            { pattern: /pix\s+\d+/, description: 'pix + número' },
+            { pattern: /recebi\s+um\s+pix\s+de\s+\d+/, description: 'recebi um pix de + número' },
+            
+            // Padrões com "pagamento"
+            { pattern: /pagamento\s+de\s+\d+/, description: 'pagamento de + número' },
+            { pattern: /pagamento\s+\d+/, description: 'pagamento + número' },
+            { pattern: /me\s+pagaram\s+\d+/, description: 'me pagaram + número' },
+            
+            // Padrões com "rendimento"
+            { pattern: /rendimento\s+de\s+\d+/, description: 'rendimento de + número' },
+            { pattern: /rendimento\s+\d+/, description: 'rendimento + número' },
+            { pattern: /rendeu\s+\d+/, description: 'rendeu + número' },
+            
+            // Padrões com "valor"
+            { pattern: /valor\s+de\s+\d+\s+recebido/, description: 'valor de + número + recebido' },
+            
+            // Padrões com "caiu"
+            { pattern: /caiu\s+\d+\s+na\s+conta/, description: 'caiu + número + na conta' },
+            { pattern: /caiu\s+\d+/, description: 'caiu + número' },
+            
+            // Padrões com "receita"
+            { pattern: /receita\s+de\s+\d+/, description: 'receita de + número' },
+            { pattern: /receita\s+\d+/, description: 'receita + número' },
+            
+            // Padrões com "faturei"
+            { pattern: /faturei\s+\d+/, description: 'faturei + número' },
+            { pattern: /faturei\s+r?\$?\s*\d+/, description: 'faturei + R$ + número' },
+            
+            // Padrões com "vendi"
+            { pattern: /vendi\s+\w+\s+por\s+\d+/, description: 'vendi algo por + número' },
+            { pattern: /vendi\s+por\s+\d+/, description: 'vendi por + número' },
+            
+            // Padrões com "lucro"
+            { pattern: /lucro\s+de\s+\d+/, description: 'lucro de + número' },
+            { pattern: /lucro\s+\d+/, description: 'lucro + número' },
+            { pattern: /lucrei\s+\d+/, description: 'lucrei + número' }
+        ];
+        
+        // Verificar se a mensagem contém algum dos padrões de receita
+        for (const { pattern, description } of receitaPatterns) {
+            if (pattern.test(msg)) {
+                console.log(`[DEBUG] isAdicionarReceita - Detectou padrão "${description}"`);
+                return true;
+            }
         }
         
-        if (msg.includes('salário') && /\d+/.test(msg)) {
-            console.log('[DEBUG] isAdicionarReceita - Detectou padrão "salário + número"');
-            return true;
-        }
+        // Verificar palavras-chave específicas
+        const receitaKeywords = [
+            'recebi', 'ganhei', 'salário', 'salario', 'pagamento', 
+            'depósito', 'deposito', 'transferência', 'transferencia', 
+            'pix', 'entrada', 'receita', 'rendimento', 'dividendo',
+            'freelance', 'freela', 'comissão', 'comissao', 'bônus',
+            'bonus', 'prêmio', 'premio', 'restituição', 'restituicao',
+            'aluguel', 'pensão', 'pensao', 'aposentadoria', 'benefício',
+            'beneficio', 'bolsa', 'estágio', 'estagio', 'mesada',
+            'vendi', 'faturei', 'lucrei', 'receita'
+        ];
         
-        if (msg.includes('salario') && /\d+/.test(msg)) {
-            console.log('[DEBUG] isAdicionarReceita - Detectou padrão "salario + número"');
+        // Se contém uma palavra-chave de receita E um número, provavelmente é uma receita
+        if (receitaKeywords.some(keyword => msg.includes(keyword)) && /\d+/.test(msg)) {
+            console.log('[DEBUG] isAdicionarReceita - Detectou palavra-chave de receita + número');
             return true;
         }
         
@@ -649,7 +994,7 @@ export default class FinanceAgent {
         const valorRegex = /\d+([.,]\d{1,2})?/;
         const valorMatch = msgLower.match(valorRegex);
         if (!valorMatch) {
-            return 'Não consegui identificar o valor. Por favor, me diga quanto você gastou (ex: "gastei 20 reais")';
+            return 'Eita! Não consegui identificar quanto você gastou 😅 Me fala o valor certinho (ex: "gastei 20 reais")';
         }
         const valor = parseFloat(valorMatch[0].replace(',', '.'));
 
@@ -658,6 +1003,43 @@ export default class FinanceAgent {
             const userPlan = await this.getUserPlan(userId);
             console.log('[GASTO] Plano do usuário:', userPlan);
             
+            // Verificar se é uma transação com cartão de crédito
+            const isCartaoCredito = msgLower.includes('cartão') || msgLower.includes('cartao') || 
+                                   msgLower.includes('crédito') || msgLower.includes('credito');
+            
+            let creditCardId = null;
+            let selectedBank = null;
+            
+            // Se for cartão de crédito, buscar o cartão mencionado
+            if (isCartaoCredito) {
+                console.log('[GASTO] Detectado uso de cartão de crédito');
+                
+                // Buscar cartões de crédito do usuário
+                const { data: creditCards } = await this.supabase
+                    .from('credit_cards')
+                    .select('id, name')
+                    .eq('user_id', userId);
+                
+                console.log('[GASTO] Cartões disponíveis:', creditCards);
+                
+                // Verificar se algum cartão foi mencionado na mensagem
+                if (creditCards && creditCards.length > 0) {
+                    for (const card of creditCards) {
+                        if (msgLower.includes(card.name.toLowerCase())) {
+                            creditCardId = card.id;
+                            console.log('[GASTO] Cartão encontrado:', card.name, card.id);
+                            break;
+                        }
+                    }
+                    
+                    // Se não identificou cartão específico, usa o primeiro
+                    if (!creditCardId) {
+                        creditCardId = creditCards[0].id;
+                        console.log('[GASTO] Usando primeiro cartão disponível:', creditCards[0].name, creditCardId);
+                    }
+                }
+            }
+            
             // Para plano free, usamos um fluxo simplificado sem contas bancárias
             if (userPlan === 'free') {
                 console.log('[GASTO] Usando fluxo simplificado para plano free');
@@ -665,7 +1047,8 @@ export default class FinanceAgent {
                 // Identificar categoria
                 let category;
                 const words = msgLower.split(' ');
-                const commonWords = ['reais', 'gastei', 'paguei', 'comprei', 'no', 'na', 'em', 'com', 'de', 'do', 'da'];
+                const commonWords = ['reais', 'gastei', 'paguei', 'comprei', 'no', 'na', 'em', 'com', 'de', 'do', 'da', 
+                                    'cartão', 'cartao', 'crédito', 'credito'];
                 const possibleCategories = words.filter(word => !commonWords.includes(word) && !word.match(/\d+/));
                 
                 console.log('[GASTO] Categorias possíveis:', possibleCategories);
@@ -714,25 +1097,25 @@ export default class FinanceAgent {
                     
                     if (categoryError) {
                         console.error('[GASTO] Erro ao criar categoria:', categoryError);
-                        return `❌ Erro ao criar categoria: ${categoryError.message}`;
+                        return `Ops! Deu ruim ao criar a categoria 😬 Erro: ${categoryError.message}`;
                     }
                     
                     category = newCategory;
                 }
                 
-                // Inserir transação diretamente sem banco
+                // Inserir transação diretamente
                 const transactionData = {
                     user_id: userId,
-                    // Deixamos bank_id como null para plano free
                     category_id: category.id,
                     type: 'expense',
                     amount: valor,
                     description: possibleCategories.length > 0 ? possibleCategories[0] : 'Gasto',
                     date: new Date().toISOString().split('T')[0],
-                    status: 'completed'
+                    status: 'completed',
+                    credit_card_id: creditCardId // Adicionamos o ID do cartão, se houver
                 };
                 
-                console.log('[GASTO] Inserindo transação sem banco:', transactionData);
+                console.log('[GASTO] Inserindo transação:', transactionData);
                 
                 const { data: transaction, error: transactionError } = await this.supabase
                     .from('transactions')
@@ -741,15 +1124,20 @@ export default class FinanceAgent {
                 
                 if (transactionError) {
                     console.error('[GASTO] Erro ao inserir transação:', transactionError);
-                    return `❌ Erro ao registrar transação: ${transactionError.message}`;
+                    return `Eita! Algo deu errado ao registrar seu gasto 😅 ${transactionError.message}`;
                 }
                 
                 console.log('[GASTO] Transação registrada com sucesso:', transaction);
                 
-                return `✅ Gasto registrado!
-Valor: R$ ${valor.toFixed(2)}
-Categoria: ${category.name}
-Data: ${new Date().toLocaleDateString('pt-BR')}`;
+                const cartaoInfo = creditCardId ? ' no cartão' : '';
+                
+                return `🎯 Gasto anotado${cartaoInfo}! 💸
+
+💰 Valor: R$ ${valor.toFixed(2)}
+📝 Categoria: ${category.name}
+📅 Data: ${new Date().toLocaleDateString('pt-BR')}
+
+Tá tudo certo por aqui! 👌`;
             }
             
             // Para outros planos, usa o fluxo normal com contas bancárias
@@ -759,39 +1147,41 @@ Data: ${new Date().toLocaleDateString('pt-BR')}`;
                 .select('id, name')
                 .eq('user_id', userId);
 
-            let selectedBank = null;
-            if (banks && banks.length > 0) {
-                for (const bank of banks) {
-                    if (msgLower.includes(bank.name.toLowerCase())) {
-                        selectedBank = bank;
-                        break;
+            if (!creditCardId) {
+                // Se não for cartão de crédito, procura um banco
+                if (banks && banks.length > 0) {
+                    for (const bank of banks) {
+                        if (msgLower.includes(bank.name.toLowerCase())) {
+                            selectedBank = bank;
+                            break;
+                        }
                     }
-                }
 
-                // Se não identificou banco específico, usa o primeiro
-                if (!selectedBank) {
-                    selectedBank = banks[0];
-                }
-            } else {
-                // Se não tem nenhuma conta bancária cadastrada, cria uma conta padrão
-                try {
-                    const { data, error } = await this.supabase
-                        .from('banks')
-                        .insert({
-                            user_id: userId,
-                            name: 'Conta Principal',
-                            balance: 0,
-                            type: 'corrente',
-                            color: '#3498db'
-                        })
-                        .select()
-                        .single();
-                    
-                    if (error) throw error;
-                    selectedBank = data;
-                } catch (error) {
-                    console.error('Erro ao criar conta bancária padrão:', error);
-                    return 'Não consegui criar uma conta bancária para você. Por favor, adicione uma conta no dashboard.';
+                    // Se não identificou banco específico, usa o primeiro
+                    if (!selectedBank) {
+                        selectedBank = banks[0];
+                    }
+                } else {
+                    // Se não tem nenhuma conta bancária cadastrada, cria uma conta padrão
+                    try {
+                        const { data, error } = await this.supabase
+                            .from('banks')
+                            .insert({
+                                user_id: userId,
+                                name: 'Conta Principal',
+                                balance: 0,
+                                type: 'corrente',
+                                color: '#3498db'
+                            })
+                            .select()
+                            .single();
+                        
+                        if (error) throw error;
+                        selectedBank = data;
+                    } catch (error) {
+                        console.error('Erro ao criar conta bancária padrão:', error);
+                        return 'Hmm, não consegui criar uma conta bancária pra você 🤔 Dá uma olhada no app e adiciona uma conta lá, beleza?';
+                    }
                 }
             }
 
@@ -854,135 +1244,137 @@ Data: ${new Date().toLocaleDateString('pt-BR')}`;
                                 });
                         }
                         
-                        // Depois, tenta identificar a categoria novamente
-                        let matchedCategory = 'Outros'; // categoria padrão
-                        
-                        // Tenta associar palavras da mensagem com categorias criadas
-                        if (msgLower.includes('comida') || msgLower.includes('almoço') || msgLower.includes('jantar') || 
-                            msgLower.includes('restaurante') || msgLower.includes('lanche')) {
-                            matchedCategory = 'Alimentação';
-                        } else if (msgLower.includes('uber') || msgLower.includes('ônibus') || msgLower.includes('trem') || 
-                                   msgLower.includes('metrô') || msgLower.includes('táxi') || msgLower.includes('transporte')) {
-                            matchedCategory = 'Transporte';
-                        } else if (msgLower.includes('cinema') || msgLower.includes('festa') || msgLower.includes('show') || 
-                                   msgLower.includes('viagem')) {
-                            matchedCategory = 'Lazer';
-                        } else if (msgLower.includes('aluguel') || msgLower.includes('condomínio') || msgLower.includes('água') || 
-                                   msgLower.includes('luz') || msgLower.includes('gás')) {
-                            matchedCategory = 'Moradia';
-                        } else if (msgLower.includes('remédio') || msgLower.includes('médico') || msgLower.includes('hospital') || 
-                                   msgLower.includes('farmácia')) {
-                            matchedCategory = 'Saúde';
-                        } else if (msgLower.includes('curso') || msgLower.includes('livro') || msgLower.includes('faculdade') || 
-                                   msgLower.includes('escola')) {
-                            matchedCategory = 'Educação';
-                        }
-                        
-                        // Busca a categoria criada para associar à transação
-                        const { data: newCategory } = await this.supabase
+                        // Depois busca novamente
+                        const { data: newCategories } = await this.supabase
                             .from('categories')
                             .select('id, name')
                             .eq('user_id', userId)
-                            .eq('name', matchedCategory)
-                            .single();
-                        
-                        category = newCategory;
+                            .eq('type', 'expense');
+                            
+                        if (newCategories && newCategories.length > 0) {
+                            category = newCategories[0];
+                        }
                     } catch (error) {
                         console.error('Erro ao criar categorias básicas:', error);
-                        return 'Ocorreu um erro ao configurar categorias. Por favor, configure categorias no dashboard.';
+                        return 'Opa! Não consegui criar categorias pra você 😅 Dá um pulinho no app e cria algumas categorias lá, pode ser?';
                     }
                 } else {
-                    // Se tem categorias mas não identificou, sugere as existentes
-                return `Não consegui identificar a categoria do gasto. Por favor, me diga em qual categoria se encaixa:\n${categories.map(c => `- ${c.name}`).join('\n')}\n\nPor exemplo:\n"gastei ${valor} reais em ${categories[0].name}"`;
+                    // Usa a primeira categoria disponível
+                    category = categories[0];
                 }
             }
 
-            // Registra a transação
-            try {
-                const transactionData = {
-                    user_id: userId,
-                    bank_id: selectedBank.id,
-                    category_id: category.id,
-                    type: 'expense',
-                    amount: valor,
-                    date: new Date().toISOString().split('T')[0],
-                    status: 'completed'
-                };
-                
-                console.log('[DEBUG] Registrando gasto:', JSON.stringify(transactionData));
-                
-                const { data, error } = await this.supabase
-                    .from('transactions')
-                    .insert(transactionData)
-                    .select();
-
-                if (error) {
-                    console.error('[DEBUG] Erro ao registrar gasto:', error);
-                    throw error;
-                }
-                
-                console.log('[DEBUG] Gasto registrado com sucesso:', data);
-
-            return `✅ Gasto registrado!\nValor: R$ ${valor.toFixed(2)}\nCategoria: ${category.name}\nConta: ${selectedBank.name}`;
-            } catch (error) {
-                console.error('Erro ao registrar transação:', error);
-                return 'Ocorreu um erro ao registrar sua transação. Por favor, tente novamente.';
+            // Agora que temos banco/cartão e categoria, inserimos a transação
+            const transactionData = {
+                user_id: userId,
+                bank_id: selectedBank?.id || null,
+                category_id: category.id,
+                type: 'expense',
+                amount: valor,
+                description: possibleCategories.length > 0 ? possibleCategories[0] : 'Gasto',
+                date: new Date().toISOString().split('T')[0],
+                status: 'completed',
+                credit_card_id: creditCardId
+            };
+            
+            console.log('[GASTO] Inserindo transação:', transactionData);
+            
+            const { data: transaction, error: transactionError } = await this.supabase
+                .from('transactions')
+                .insert(transactionData)
+                .select();
+            
+            if (transactionError) {
+                console.error('[GASTO] Erro ao inserir transação:', transactionError);
+                return `Opa! Algo deu errado ao salvar seu gasto 😬 ${transactionError.message}`;
             }
+            
+            console.log('[GASTO] Transação registrada com sucesso:', transaction);
+            
+            const meioPagamento = creditCardId ? 'cartão de crédito' : selectedBank.name;
+            
+            return `🎯 Gasto anotado! 💸
+
+💰 Valor: R$ ${valor.toFixed(2)}
+📝 Descrição: ${transactionData.description}
+🏷️ Categoria: ${category.name}
+💳 Meio: ${meioPagamento}
+📅 Data: ${new Date().toLocaleDateString('pt-BR')}
+
+Tá tudo certo por aqui! 👌`;
         } catch (error) {
-            console.error('Erro ao processar gasto:', error);
-            return 'Desculpe, ocorreu um erro ao processar seu gasto. Tente novamente.';
+            console.error('[GASTO] Erro ao processar gasto:', error);
+            return `Eita! Deu um probleminha aqui 😅 ${error.message}`;
         }
     }
 
     async handleBalance(userId) {
-        const { data: banks } = await this.supabase
-            .from('banks')
-            .select('name, balance')
-            .eq('user_id', userId);
+        try {
+            const { data: banks, error } = await this.supabase
+                .from('banks')
+                .select('name, balance')
+                .eq('user_id', userId);
+                
+            if (error) throw error;
+            
+            if (!banks || banks.length === 0) {
+                return 'Você ainda não tem nenhuma conta bancária cadastrada. Adicione uma no dashboard!';
+            }
+            
+            // Calcular saldo total
+            const totalBalance = banks.reduce((total, bank) => total + (bank.balance || 0), 0);
+            
+            // Formatar mensagem
+            const bankDetails = banks.map(bank => 
+                `${bank.name}: ${formatCurrency(bank.balance || 0)}`
+            ).join('\n');
+            
+            return `💰 Seu saldo atual:
 
-        if (!banks || banks.length === 0) {
-            return 'Você não tem nenhuma conta cadastrada.';
+${bankDetails}
+
+🏦 Total: ${formatCurrency(totalBalance)}
+
+Tá querendo economizar mais? Me conta como posso te ajudar! 😉`;
+        } catch (error) {
+            console.error('Erro ao consultar saldo:', error);
+            return 'Opa! Tive um probleminha pra ver seu saldo. Tenta de novo daqui a pouco, beleza? 😅';
         }
-
-        let response = '💰 Saldo das suas contas:\n\n';
-        let total = 0;
-
-        for (const bank of banks) {
-            response += `${bank.name}: R$ ${bank.balance.toFixed(2)}\n`;
-            total += parseFloat(bank.balance);
-        }
-
-        response += `\nTotal: R$ ${total.toFixed(2)}`;
-        return response;
     }
 
     async handleCategories(userId) {
-        const { data: categories } = await this.supabase
-            .from('categories')
-            .select('name, type')
-            .eq('user_id', userId);
+        try {
+            const { data: categories, error } = await this.supabase
+                .from('categories')
+                .select('name, type')
+                .eq('user_id', userId);
+                
+            if (error) throw error;
+            
+            if (!categories || categories.length === 0) {
+                return 'Você ainda não tem categorias cadastradas. Adicione algumas no dashboard!';
+            }
+            
+            // Separar categorias por tipo
+            const expenseCategories = categories
+                .filter(cat => cat.type === 'expense')
+                .map(cat => cat.name);
+                
+            const incomeCategories = categories
+                .filter(cat => cat.type === 'income')
+                .map(cat => cat.name);
+                
+            return `📋 Suas categorias:
 
-        if (!categories || categories.length === 0) {
-            return 'Você não tem nenhuma categoria cadastrada.';
+🔴 Despesas:
+${expenseCategories.map(cat => `- ${cat}`).join('\n') || '- Nenhuma categoria de despesa'}
+
+🟢 Receitas:
+${incomeCategories.map(cat => `- ${cat}`).join('\n') || '- Nenhuma categoria de receita'}`;
+        } catch (error) {
+            console.error('Erro ao listar categorias:', error);
+            return 'Eita! Deu um probleminha ao buscar suas categorias 😅 Tenta de novo mais tarde, ok?';
         }
-
-        const expenses = categories.filter(c => c.type === 'expense');
-        const income = categories.filter(c => c.type === 'income');
-
-        let response = '📋 Suas categorias:\n\n';
-        
-        if (expenses.length > 0) {
-            response += '🔴 Despesas:\n';
-            expenses.forEach(c => response += `- ${c.name}\n`);
-            response += '\n';
-        }
-
-        if (income.length > 0) {
-            response += '🟢 Receitas:\n';
-            income.forEach(c => response += `- ${c.name}\n`);
-        }
-
-        return response;
     }
 
     async handleReport(userId) {
@@ -1134,26 +1526,21 @@ Me diga como posso te ajudar! 😊`;
         const valorRegex = /\d+([.,]\d{1,2})?/;
         const valorMatch = msgLower.match(valorRegex);
         if (!valorMatch) {
-            return 'Não consegui identificar o valor. Por favor, me diga quanto você recebeu (ex: "recebi 2000 de salário")';
+            return 'Hmm, não consegui identificar o valor 🤔 Me fala quanto você recebeu (ex: "recebi 1000 reais")';
         }
         const valor = parseFloat(valorMatch[0].replace(',', '.'));
-
+        
         try {
             // Verificar o plano do usuário
             const userPlan = await this.getUserPlan(userId);
-            console.log('[RECEITA] Plano do usuário:', userPlan);
             
             // Para plano free, usamos um fluxo simplificado sem contas bancárias
             if (userPlan === 'free') {
-                console.log('[RECEITA] Usando fluxo simplificado para plano free');
-                
                 // Identificar categoria
                 let category;
                 const words = msgLower.split(' ');
-                const commonWords = ['reais', 'recebi', 'recebimento', 'receita', 'pagamento', 'no', 'na', 'em', 'de', 'do', 'da'];
+                const commonWords = ['reais', 'recebi', 'ganhei', 'entrou', 'no', 'na', 'em', 'com', 'de', 'do', 'da'];
                 const possibleCategories = words.filter(word => !commonWords.includes(word) && !word.match(/\d+/));
-                
-                console.log('[RECEITA] Categorias possíveis:', possibleCategories);
                 
                 // Verificar categorias existentes
                 const { data: categories } = await this.supabase
@@ -1163,8 +1550,6 @@ Me diga como posso te ajudar! 😊`;
                     .eq('type', 'income');
                 
                 if (categories && categories.length > 0) {
-                    console.log('[RECEITA] Categorias existentes:', categories);
-                    
                     // Tentar encontrar categoria pelo nome
                     for (const word of possibleCategories) {
                         const matchingCategory = categories.find(c => 
@@ -1174,7 +1559,6 @@ Me diga como posso te ajudar! 😊`;
                         
                         if (matchingCategory) {
                             category = matchingCategory;
-                            console.log('[RECEITA] Categoria encontrada:', category);
                             break;
                         }
                     }
@@ -1182,24 +1566,22 @@ Me diga como posso te ajudar! 😊`;
                     // Se não encontrou, usa a primeira
                     if (!category) {
                         category = categories[0];
-                        console.log('[RECEITA] Usando primeira categoria:', category);
                     }
                 } else {
                     // Criar categoria padrão
-                    console.log('[RECEITA] Criando categoria padrão');
                     const { data: newCategory, error: categoryError } = await this.supabase
                         .from('categories')
                         .insert({
                             user_id: userId,
-                            name: 'Salário',
+                            name: 'Outros',
                             type: 'income'
                         })
                         .select()
                         .single();
                     
                     if (categoryError) {
-                        console.error('[RECEITA] Erro ao criar categoria:', categoryError);
-                        return `❌ Erro ao criar categoria: ${categoryError.message}`;
+                        console.error('Erro ao criar categoria:', categoryError);
+                        return `Opa! Deu um erro ao criar uma categoria 😬 ${categoryError.message}`;
                     }
                     
                     category = newCategory;
@@ -1208,7 +1590,6 @@ Me diga como posso te ajudar! 😊`;
                 // Inserir transação diretamente sem banco
                 const transactionData = {
                     user_id: userId,
-                    // Deixamos bank_id como null para plano free
                     category_id: category.id,
                     type: 'income',
                     amount: valor,
@@ -1217,28 +1598,27 @@ Me diga como posso te ajudar! 😊`;
                     status: 'completed'
                 };
                 
-                console.log('[RECEITA] Inserindo transação sem banco:', transactionData);
-                
                 const { data: transaction, error: transactionError } = await this.supabase
                     .from('transactions')
                     .insert(transactionData)
                     .select();
                 
                 if (transactionError) {
-                    console.error('[RECEITA] Erro ao inserir transação:', transactionError);
-                    return `❌ Erro ao registrar transação: ${transactionError.message}`;
+                    console.error('Erro ao inserir transação:', transactionError);
+                    return `Eita! Algo deu errado ao registrar sua receita 😅 ${transactionError.message}`;
                 }
                 
-                console.log('[RECEITA] Transação registrada com sucesso:', transaction);
-                
-                return `✅ Receita registrada!
-Valor: R$ ${valor.toFixed(2)}
-Categoria: ${category.name}
-Data: ${new Date().toLocaleDateString('pt-BR')}`;
+                return `🎉 Receita registrada! 💰
+
+💵 Valor: R$ ${valor.toFixed(2)}
+📝 Categoria: ${category.name}
+📅 Data: ${new Date().toLocaleDateString('pt-BR')}
+
+Boa! Seu dinheirinho tá guardado na conta! 💪`;
             }
             
             // Para outros planos, usa o fluxo normal com contas bancárias
-            // Identifica o banco
+            // Identificar o banco
             const { data: banks } = await this.supabase
                 .from('banks')
                 .select('id, name')
@@ -1276,16 +1656,15 @@ Data: ${new Date().toLocaleDateString('pt-BR')}`;
                     selectedBank = data;
                 } catch (error) {
                     console.error('Erro ao criar conta bancária padrão:', error);
-                    return 'Não consegui criar uma conta bancária para você. Por favor, adicione uma conta no dashboard.';
+                    return 'Hmm, não consegui criar uma conta bancária pra você 🤔 Dá uma olhada no app e adiciona uma conta lá, beleza?';
                 }
             }
 
             // Identifica a categoria
             const words = msgLower.split(' ');
             const commonWords = [
-                'reais', 'recebi', 'recebimento', 'receita', 'pagamento', 'no', 'na', 'em', 'de', 'do', 'da',
-                'cartão', 'cartao', 'débito', 'debito', 'crédito', 'credito', 'pix', 'dinheiro',
-                'transferência', 'transferi', 'depositei', 'depósito', 'conta'
+                'reais', 'recebi', 'ganhei', 'entrou', 'no', 'na', 'em', 'com', 'de', 'do', 'da',
+                'pix', 'transferência', 'transferencia', 'depósito', 'deposito', 'salário', 'salario'
             ];
             const possibleCategories = words.filter(word => !commonWords.includes(word) && !word.match(/\d+/));
             
@@ -1316,14 +1695,12 @@ Data: ${new Date().toLocaleDateString('pt-BR')}`;
                     .eq('type', 'income');
 
                 if (!categories || categories.length === 0) {
-                    // Se não tem categorias, cria categorias básicas de receita
+                    // Se não tem categorias, cria categorias básicas
                     try {
                         const basicCategories = [
                             { name: 'Salário', type: 'income' },
                             { name: 'Freelance', type: 'income' },
                             { name: 'Investimentos', type: 'income' },
-                            { name: 'Presente', type: 'income' },
-                            { name: 'Reembolso', type: 'income' },
                             { name: 'Outros', type: 'income' }
                         ];
                         
@@ -1338,83 +1715,60 @@ Data: ${new Date().toLocaleDateString('pt-BR')}`;
                                 });
                         }
                         
-                        // Depois, tenta identificar a categoria novamente
-                        let matchedCategory = 'Outros'; // categoria padrão
-                        
-                        // Tenta associar palavras da mensagem com categorias criadas
-                        if (msgLower.includes('salário') || msgLower.includes('salario') || 
-                            msgLower.includes('pagamento') || msgLower.includes('trabalho')) {
-                            matchedCategory = 'Salário';
-                        } else if (msgLower.includes('freela') || msgLower.includes('freelance') || 
-                                  msgLower.includes('bico') || msgLower.includes('projeto')) {
-                            matchedCategory = 'Freelance';
-                        } else if (msgLower.includes('investimento') || msgLower.includes('dividendo') || 
-                                  msgLower.includes('juros') || msgLower.includes('ação') || msgLower.includes('rendimento')) {
-                            matchedCategory = 'Investimentos';
-                        } else if (msgLower.includes('presente') || msgLower.includes('doação') || 
-                                  msgLower.includes('presente') || msgLower.includes('prêmio')) {
-                            matchedCategory = 'Presente';
-                        } else if (msgLower.includes('reembolso') || msgLower.includes('devolução') || 
-                                  msgLower.includes('estorno')) {
-                            matchedCategory = 'Reembolso';
-                        }
-                        
-                        // Busca a categoria criada para associar à transação
-                        const { data: newCategory } = await this.supabase
+                        // Depois busca novamente
+                        const { data: newCategories } = await this.supabase
                             .from('categories')
                             .select('id, name')
                             .eq('user_id', userId)
-                            .eq('name', matchedCategory)
-                            .single();
-                        
-                        category = newCategory;
+                            .eq('type', 'income');
+                            
+                        if (newCategories && newCategories.length > 0) {
+                            category = newCategories[0];
+                        }
                     } catch (error) {
-                        console.error('Erro ao criar categorias básicas de receita:', error);
-                        return 'Ocorreu um erro ao configurar categorias. Por favor, configure categorias no dashboard.';
+                        console.error('Erro ao criar categorias básicas:', error);
+                        return 'Opa! Não consegui criar categorias pra você 😅 Dá um pulinho no app e cria algumas categorias lá, pode ser?';
                     }
                 } else {
-                    // Se tem categorias mas não identificou, sugere as existentes
-                    return `Não consegui identificar a categoria da receita. Por favor, me diga em qual categoria se encaixa:\n${categories.map(c => `- ${c.name}`).join('\n')}\n\nPor exemplo:\n"recebi ${valor} reais de ${categories[0].name}"`;
+                    // Usa a primeira categoria disponível
+                    category = categories[0];
                 }
             }
 
-            // Registra a transação
-            try {
-                const transactionData = {
-                    user_id: userId,
-                    bank_id: selectedBank.id,
-                    category_id: category.id,
-                    type: 'income',
-                    amount: valor,
-                    date: new Date().toISOString().split('T')[0],
-                    status: 'completed'
-                };
-                
-                console.log('[RECEITA] Registrando receita:', JSON.stringify(transactionData));
-                
-                const { data, error } = await this.supabase
-                    .from('transactions')
-                    .insert(transactionData)
-                    .select();
-
-                if (error) {
-                    console.error('[RECEITA] Erro ao registrar receita:', error);
-                    throw error;
-                }
-                
-                console.log('[RECEITA] Receita registrada com sucesso:', data);
-                
-                return `✅ Receita registrada!
-Valor: R$ ${valor.toFixed(2)}
-Categoria: ${category.name}
-Conta: ${selectedBank.name}`;
-            } catch (error) {
-                console.error('Erro ao registrar receita:', error);
-                return 'Ocorreu um erro ao registrar sua receita. Por favor, tente novamente.';
+            // Agora que temos banco e categoria, inserimos a transação
+            const transactionData = {
+                user_id: userId,
+                bank_id: selectedBank.id,
+                category_id: category.id,
+                type: 'income',
+                amount: valor,
+                description: possibleCategories.length > 0 ? possibleCategories[0] : 'Receita',
+                date: new Date().toISOString().split('T')[0],
+                status: 'completed'
+            };
+            
+            const { data: transaction, error: transactionError } = await this.supabase
+                .from('transactions')
+                .insert(transactionData)
+                .select();
+            
+            if (transactionError) {
+                console.error('Erro ao inserir transação:', transactionError);
+                return `Eita! Algo deu errado ao registrar sua receita 😅 ${transactionError.message}`;
             }
+            
+            return `🎉 Receita registrada! 💰
+
+💵 Valor: R$ ${valor.toFixed(2)}
+📝 Descrição: ${transactionData.description}
+🏷️ Categoria: ${category.name}
+🏦 Conta: ${selectedBank.name}
+📅 Data: ${new Date().toLocaleDateString('pt-BR')}
+
+Boa! Seu dinheirinho tá guardado na conta! 💪`;
         } catch (error) {
             console.error('Erro ao processar receita:', error);
-            return 'Desculpe, ocorreu um erro ao processar sua receita. Tente novamente.';
+            return `Eita! Deu um probleminha aqui 😅 ${error.message}`;
         }
     }
 
@@ -2467,6 +2821,487 @@ Você está no plano FREE. Para separar por contas bancárias, faça upgrade par
         } catch (error) {
             console.error(`[CATEGORIAS] Erro ao listar categorias: ${error}`);
             return `❌ Erro ao listar categorias: ${error.message}`;
+        }
+    }
+
+    async criarCategoria(userId, message) {
+        console.log('[CATEGORIA] Processando criação de categoria para usuário:', userId);
+        console.log('[CATEGORIA] Mensagem original:', message);
+        
+        try {
+            // Extrair o nome da categoria da mensagem
+            let categoryName = '';
+            let categoryType = '';
+            
+            const msgLower = message.toLowerCase();
+            
+            // Padrões para extrair o nome da categoria
+            const namePatterns = [
+                // Padrões para extrair nome após "categoria"
+                /categoria\s+(?:de\s+)?([a-zà-úA-ZÀ-Ú\s]+)(?:\s+(?:como|tipo|de)\s+)?/i,
+                /categoria\s+(?:para|de)\s+([a-zà-úA-ZÀ-Ú\s]+)(?:\s+(?:como|tipo|de)\s+)?/i,
+                
+                // Padrões para extrair nome após verbos
+                /cri[ae]r\s+(?:uma\s+)?(?:nova\s+)?categoria\s+(?:de\s+)?([a-zà-úA-ZÀ-Ú\s]+)(?:\s+(?:como|tipo|de)\s+)?/i,
+                /adicionar\s+(?:uma\s+)?(?:nova\s+)?categoria\s+(?:de\s+)?([a-zà-úA-ZÀ-Ú\s]+)(?:\s+(?:como|tipo|de)\s+)?/i,
+                /cadastrar\s+(?:uma\s+)?(?:nova\s+)?categoria\s+(?:de\s+)?([a-zà-úA-ZÀ-Ú\s]+)(?:\s+(?:como|tipo|de)\s+)?/i,
+                /incluir\s+(?:uma\s+)?(?:nova\s+)?categoria\s+(?:de\s+)?([a-zà-úA-ZÀ-Ú\s]+)(?:\s+(?:como|tipo|de)\s+)?/i,
+                
+                // Padrão genérico para pegar qualquer palavra após "categoria"
+                /categoria\s+([a-zà-úA-ZÀ-Ú\s]+)/i
+            ];
+            
+            // Tentar extrair o nome da categoria
+            for (const pattern of namePatterns) {
+                const match = msgLower.match(pattern);
+                if (match && match[1]) {
+                    categoryName = match[1].trim();
+                    // Remover palavras-chave que possam ter sido capturadas erroneamente
+                    categoryName = categoryName
+                        .replace(/\s+como\s+(?:despesa|receita|gasto|entrada).*$/i, '')
+                        .replace(/\s+tipo\s+(?:despesa|receita|gasto|entrada).*$/i, '')
+                        .replace(/\s+de\s+(?:despesa|receita|gasto|entrada).*$/i, '')
+                        .trim();
+                    break;
+                }
+            }
+            
+            // Se não conseguiu extrair o nome, pede ao usuário
+            if (!categoryName) {
+                return 'Por favor, me diga qual o nome da categoria que você quer criar. Por exemplo: "criar categoria Restaurantes" ou "nova categoria Salário".';
+            }
+            
+            // Capitalizar a primeira letra de cada palavra
+            categoryName = categoryName.split(' ')
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                .join(' ');
+            
+            console.log('[CATEGORIA] Nome da categoria extraído:', categoryName);
+            
+            // Determinar o tipo da categoria (despesa ou receita)
+            if (msgLower.includes('despesa') || 
+                msgLower.includes('gasto') || 
+                msgLower.includes('saída') || 
+                msgLower.includes('saida') || 
+                msgLower.includes('pagamento')) {
+                categoryType = 'expense';
+            } else if (msgLower.includes('receita') || 
+                      msgLower.includes('entrada') || 
+                      msgLower.includes('ganho') || 
+                      msgLower.includes('recebimento') || 
+                      msgLower.includes('salário') || 
+                      msgLower.includes('salario')) {
+                categoryType = 'income';
+            } else {
+                // Se não especificou o tipo, verifica se o nome sugere um tipo
+                const expenseKeywords = ['mercado', 'supermercado', 'farmácia', 'farmacia', 
+                                        'restaurante', 'lanche', 'combustível', 'combustivel', 
+                                        'uber', 'táxi', 'taxi', 'transporte', 'academia', 
+                                        'mensalidade', 'assinatura', 'netflix', 'spotify', 
+                                        'amazon', 'ifood', 'delivery', 'conta', 'aluguel', 
+                                        'escola', 'faculdade', 'médico', 'medico', 'dentista',
+                                        'hospital', 'remédio', 'remedio', 'roupas', 'calçados',
+                                        'calcados'];
+                                        
+                const incomeKeywords = ['salário', 'salario', 'freelance', 'freela', 
+                                       'investimento', 'dividendo', 'aluguel', 'comissão', 
+                                       'comissao', 'bônus', 'bonus', 'prêmio', 'premio', 
+                                       'restituição', 'restituicao', 'pensão', 'pensao', 
+                                       'aposentadoria', 'benefício', 'beneficio', 'bolsa', 
+                                       'estágio', 'estagio', 'mesada', 'venda'];
+                
+                // Verificar se o nome da categoria contém alguma palavra-chave
+                const nameLower = categoryName.toLowerCase();
+                if (expenseKeywords.some(keyword => nameLower.includes(keyword))) {
+                    categoryType = 'expense';
+                } else if (incomeKeywords.some(keyword => nameLower.includes(keyword))) {
+                    categoryType = 'income';
+                } else {
+                    // Se ainda não conseguiu determinar, pergunta ao usuário
+                    return `Que tipo de categoria é "${categoryName}"? Responda com "despesa" ou "receita".`;
+                }
+            }
+            
+            console.log('[CATEGORIA] Tipo da categoria determinado:', categoryType);
+            
+            // Verificar se a categoria já existe
+            const { data: existingCategories } = await this.supabase
+                .from('categories')
+                .select('name')
+                .eq('user_id', userId)
+                .eq('type', categoryType)
+                .ilike('name', categoryName);
+                
+            if (existingCategories && existingCategories.length > 0) {
+                return `A categoria "${categoryName}" já existe como ${categoryType === 'expense' ? 'despesa' : 'receita'}. Você pode usá-la normalmente!`;
+            }
+            
+            // Criar a nova categoria
+            const { data: newCategory, error } = await this.supabase
+                .from('categories')
+                .insert({
+                    user_id: userId,
+                    name: categoryName,
+                    type: categoryType
+                })
+                .select()
+                .single();
+                
+            if (error) {
+                console.error('[CATEGORIA] Erro ao criar categoria:', error);
+                return `Eita! Deu um probleminha ao criar a categoria 😅 ${error.message}`;
+            }
+            
+            console.log('[CATEGORIA] Categoria criada com sucesso:', newCategory);
+            
+            // Resposta com emoji apropriado para o tipo
+            const emoji = categoryType === 'expense' ? '🔴' : '🟢';
+            const tipoTexto = categoryType === 'expense' ? 'despesa' : 'receita';
+            
+            return `✅ Categoria criada com sucesso!
+
+${emoji} Nome: ${categoryName}
+📝 Tipo: ${tipoTexto}
+
+Agora você pode usar essa categoria nos seus registros. Por exemplo:
+${categoryType === 'expense' 
+    ? `"Gastei 50 reais em ${categoryName}"`
+    : `"Recebi 100 reais de ${categoryName}"`}`;
+        } catch (error) {
+            console.error('[CATEGORIA] Erro ao processar criação de categoria:', error);
+            return `Eita! Deu um probleminha ao criar a categoria 😅 ${error.message}`;
+        }
+    }
+
+    async criarCartao(userId, message) {
+        console.log('[CARTAO] Processando criação de cartão para usuário:', userId);
+        console.log('[CARTAO] Mensagem original:', message);
+        
+        try {
+            // Extrair o nome do cartão da mensagem
+            let cardName = '';
+            let cardLimit = 0;
+            let dueDate = 0;
+            let closingDate = 0;
+            
+            const msgLower = message.toLowerCase();
+            
+            // Padrões para extrair o nome do cartão
+            const namePatterns = [
+                // Padrões para extrair nome após "cartão"
+                /cart[ãa]o\s+(?:de\s+)?([a-zà-úA-ZÀ-Ú\s]+)(?:\s+(?:com|limite|vencimento)\s+)?/i,
+                
+                // Padrões para extrair nome após verbos
+                /cri[ae]r\s+(?:um\s+)?(?:novo\s+)?cart[ãa]o\s+(?:de\s+cr[ée]dito\s+)?(?:d[eo]\s+)?([a-zà-úA-ZÀ-Ú\s]+)(?:\s+(?:com|limite|vencimento)\s+)?/i,
+                /adicionar\s+(?:um\s+)?(?:novo\s+)?cart[ãa]o\s+(?:de\s+cr[ée]dito\s+)?(?:d[eo]\s+)?([a-zà-úA-ZÀ-Ú\s]+)(?:\s+(?:com|limite|vencimento)\s+)?/i,
+                /cadastrar\s+(?:um\s+)?(?:novo\s+)?cart[ãa]o\s+(?:de\s+cr[ée]dito\s+)?(?:d[eo]\s+)?([a-zà-úA-ZÀ-Ú\s]+)(?:\s+(?:com|limite|vencimento)\s+)?/i,
+                
+                // Padrão genérico para pegar qualquer palavra após "cartão"
+                /cart[ãa]o\s+([a-zà-úA-ZÀ-Ú\s]+)/i
+            ];
+            
+            // Tentar extrair o nome do cartão
+            for (const pattern of namePatterns) {
+                const match = msgLower.match(pattern);
+                if (match && match[1]) {
+                    cardName = match[1].trim();
+                    // Remover palavras-chave que possam ter sido capturadas erroneamente
+                    cardName = cardName
+                        .replace(/\s+com\s+limite\s+(?:de\s+)?.*$/i, '')
+                        .replace(/\s+com\s+vencimento\s+(?:dia\s+)?.*$/i, '')
+                        .replace(/\s+vencimento\s+(?:dia\s+)?.*$/i, '')
+                        .replace(/\s+fechamento\s+(?:dia\s+)?.*$/i, '')
+                        .replace(/\s+de\s+cr[ée]dito.*$/i, '')
+                        .trim();
+                    break;
+                }
+            }
+            
+            // Se não conseguiu extrair o nome, pede ao usuário
+            if (!cardName) {
+                return 'Por favor, me diga qual o nome do cartão que você quer criar. Por exemplo: "criar cartão Nubank" ou "novo cartão Itaú".';
+            }
+            
+            // Capitalizar a primeira letra de cada palavra
+            cardName = cardName.split(' ')
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                .join(' ');
+            
+            console.log('[CARTAO] Nome do cartão extraído:', cardName);
+            
+            // Extrair o limite do cartão
+            const limitPatterns = [
+                /limite\s+(?:de\s+)?r?\$?\s*(\d+[\.,]?\d*)/i,
+                /r?\$?\s*(\d+[\.,]?\d*)\s+de\s+limite/i
+            ];
+            
+            for (const pattern of limitPatterns) {
+                const match = msgLower.match(pattern);
+                if (match && match[1]) {
+                    cardLimit = parseFloat(match[1].replace(',', '.'));
+                    break;
+                }
+            }
+            
+            // Se não conseguiu extrair o limite, usa um valor padrão
+            if (!cardLimit) {
+                cardLimit = 1000; // Valor padrão
+            }
+            
+            console.log('[CARTAO] Limite do cartão extraído:', cardLimit);
+            
+            // Extrair o dia de vencimento
+            const dueDatePatterns = [
+                /vencimento\s+(?:dia\s+)?(\d{1,2})/i,
+                /vence\s+(?:dia\s+)?(\d{1,2})/i,
+                /dia\s+(\d{1,2})\s+(?:de\s+)?vencimento/i
+            ];
+            
+            for (const pattern of dueDatePatterns) {
+                const match = msgLower.match(pattern);
+                if (match && match[1]) {
+                    dueDate = parseInt(match[1]);
+                    // Validar o dia de vencimento (entre 1 e 31)
+                    if (dueDate < 1 || dueDate > 31) {
+                        dueDate = 10; // Valor padrão
+                    }
+                    break;
+                }
+            }
+            
+            // Se não conseguiu extrair o dia de vencimento, usa um valor padrão
+            if (!dueDate) {
+                dueDate = 10; // Valor padrão
+            }
+            
+            console.log('[CARTAO] Dia de vencimento extraído:', dueDate);
+            
+            // Extrair o dia de fechamento
+            const closingDatePatterns = [
+                /fechamento\s+(?:dia\s+)?(\d{1,2})/i,
+                /fecha\s+(?:dia\s+)?(\d{1,2})/i,
+                /dia\s+(\d{1,2})\s+(?:de\s+)?fechamento/i
+            ];
+            
+            for (const pattern of closingDatePatterns) {
+                const match = msgLower.match(pattern);
+                if (match && match[1]) {
+                    closingDate = parseInt(match[1]);
+                    // Validar o dia de fechamento (entre 1 e 31)
+                    if (closingDate < 1 || closingDate > 31) {
+                        closingDate = dueDate - 7; // Valor padrão baseado no vencimento
+                        if (closingDate < 1) closingDate += 30; // Ajuste para valores negativos
+                    }
+                    break;
+                }
+            }
+            
+            // Se não conseguiu extrair o dia de fechamento, usa um valor padrão
+            if (!closingDate) {
+                closingDate = dueDate - 7; // Valor padrão baseado no vencimento
+                if (closingDate < 1) closingDate += 30; // Ajuste para valores negativos
+            }
+            
+            console.log('[CARTAO] Dia de fechamento extraído:', closingDate);
+            
+            // Verificar se o cartão já existe
+            const { data: existingCards } = await this.supabase
+                .from('credit_cards')
+                .select('name')
+                .eq('user_id', userId)
+                .ilike('name', cardName);
+                
+            if (existingCards && existingCards.length > 0) {
+                return `O cartão "${cardName}" já existe. Você pode usá-lo normalmente!`;
+            }
+            
+            // Gerar uma cor aleatória
+            const colors = ['#3498db', '#2ecc71', '#e74c3c', '#f39c12', '#9b59b6', '#1abc9c', '#d35400', '#34495e'];
+            const randomColor = colors[Math.floor(Math.random() * colors.length)];
+            
+            // Criar o novo cartão
+            const { data: newCard, error } = await this.supabase
+                .from('credit_cards')
+                .insert({
+                    user_id: userId,
+                    name: cardName,
+                    limit: cardLimit,
+                    due_date: dueDate,
+                    closing_date: closingDate,
+                    color: randomColor,
+                    current_invoice: 0,
+                    next_invoice: 0
+                })
+                .select()
+                .single();
+                
+            if (error) {
+                console.error('[CARTAO] Erro ao criar cartão:', error);
+                return `Eita! Deu um probleminha ao criar o cartão 😅 ${error.message}`;
+            }
+            
+            console.log('[CARTAO] Cartão criado com sucesso:', newCard);
+            
+            return `✅ Cartão criado com sucesso!
+
+💳 Nome: ${cardName}
+💰 Limite: R$ ${cardLimit.toFixed(2)}
+📅 Vencimento: dia ${dueDate}
+📆 Fechamento: dia ${closingDate}
+
+Agora você pode usar esse cartão nos seus registros. Por exemplo:
+"Gastei 50 reais no cartão ${cardName}"`;
+        } catch (error) {
+            console.error('[CARTAO] Erro ao processar criação de cartão:', error);
+            return `Eita! Deu um probleminha ao criar o cartão 😅 ${error.message}`;
+        }
+    }
+
+    async criarContaBancaria(userId, message) {
+        console.log('[CONTA] Processando criação de conta bancária para usuário:', userId);
+        console.log('[CONTA] Mensagem original:', message);
+        
+        try {
+            // Extrair o nome da conta da mensagem
+            let accountName = '';
+            let initialBalance = 0;
+            let accountType = 'corrente'; // Valor padrão
+            
+            const msgLower = message.toLowerCase();
+            
+            // Padrões para extrair o nome da conta
+            const namePatterns = [
+                // Padrões para extrair nome após "conta"
+                /conta\s+(?:do\s+)?(?:banco\s+)?([a-zà-úA-ZÀ-Ú\s]+)(?:\s+(?:com|saldo|tipo)\s+)?/i,
+                
+                // Padrões para extrair nome após verbos
+                /cri[ae]r\s+(?:uma\s+)?(?:nova\s+)?conta\s+(?:banc[áa]ria\s+)?(?:d[eo]\s+)?([a-zà-úA-ZÀ-Ú\s]+)(?:\s+(?:com|saldo|tipo)\s+)?/i,
+                /adicionar\s+(?:uma\s+)?(?:nova\s+)?conta\s+(?:banc[áa]ria\s+)?(?:d[eo]\s+)?([a-zà-úA-ZÀ-Ú\s]+)(?:\s+(?:com|saldo|tipo)\s+)?/i,
+                /cadastrar\s+(?:uma\s+)?(?:nova\s+)?conta\s+(?:banc[áa]ria\s+)?(?:d[eo]\s+)?([a-zà-úA-ZÀ-Ú\s]+)(?:\s+(?:com|saldo|tipo)\s+)?/i,
+                
+                // Padrões para extrair nome após "banco"
+                /banco\s+([a-zà-úA-ZÀ-Ú\s]+)(?:\s+(?:com|saldo|tipo)\s+)?/i,
+                /cri[ae]r\s+(?:um\s+)?(?:novo\s+)?banco\s+([a-zà-úA-ZÀ-Ú\s]+)(?:\s+(?:com|saldo|tipo)\s+)?/i,
+                
+                // Padrão genérico para pegar qualquer palavra após "conta" ou "banco"
+                /conta\s+([a-zà-úA-ZÀ-Ú\s]+)/i,
+                /banco\s+([a-zà-úA-ZÀ-Ú\s]+)/i
+            ];
+            
+            // Tentar extrair o nome da conta
+            for (const pattern of namePatterns) {
+                const match = msgLower.match(pattern);
+                if (match && match[1]) {
+                    accountName = match[1].trim();
+                    // Remover palavras-chave que possam ter sido capturadas erroneamente
+                    accountName = accountName
+                        .replace(/\s+com\s+saldo\s+(?:de\s+)?.*$/i, '')
+                        .replace(/\s+tipo\s+(?:de\s+)?.*$/i, '')
+                        .replace(/\s+banc[áa]ria.*$/i, '')
+                        .trim();
+                    break;
+                }
+            }
+            
+            // Se não conseguiu extrair o nome, pede ao usuário
+            if (!accountName) {
+                return 'Por favor, me diga qual o nome da conta ou banco que você quer criar. Por exemplo: "criar conta Nubank" ou "nova conta Itaú".';
+            }
+            
+            // Capitalizar a primeira letra de cada palavra
+            accountName = accountName.split(' ')
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                .join(' ');
+            
+            console.log('[CONTA] Nome da conta extraído:', accountName);
+            
+            // Extrair o saldo inicial da conta
+            const balancePatterns = [
+                /saldo\s+(?:de\s+)?(?:inicial\s+)?r?\$?\s*(\d+[\.,]?\d*)/i,
+                /r?\$?\s*(\d+[\.,]?\d*)\s+de\s+saldo/i,
+                /com\s+r?\$?\s*(\d+[\.,]?\d*)/i
+            ];
+            
+            for (const pattern of balancePatterns) {
+                const match = msgLower.match(pattern);
+                if (match && match[1]) {
+                    initialBalance = parseFloat(match[1].replace(',', '.'));
+                    break;
+                }
+            }
+            
+            console.log('[CONTA] Saldo inicial extraído:', initialBalance);
+            
+            // Determinar o tipo da conta
+            if (msgLower.includes('poupança') || msgLower.includes('poupanca')) {
+                accountType = 'poupanca';
+            } else if (msgLower.includes('investimento')) {
+                accountType = 'investimento';
+            } else if (msgLower.includes('corrente')) {
+                accountType = 'corrente';
+            } else if (msgLower.includes('salário') || msgLower.includes('salario')) {
+                accountType = 'salario';
+            } else {
+                // Padrão é conta corrente
+                accountType = 'corrente';
+            }
+            
+            console.log('[CONTA] Tipo da conta determinado:', accountType);
+            
+            // Verificar se a conta já existe
+            const { data: existingAccounts } = await this.supabase
+                .from('banks')
+                .select('name')
+                .eq('user_id', userId)
+                .ilike('name', accountName);
+                
+            if (existingAccounts && existingAccounts.length > 0) {
+                return `A conta "${accountName}" já existe. Você pode usá-la normalmente!`;
+            }
+            
+            // Gerar uma cor aleatória
+            const colors = ['#3498db', '#2ecc71', '#e74c3c', '#f39c12', '#9b59b6', '#1abc9c', '#d35400', '#34495e'];
+            const randomColor = colors[Math.floor(Math.random() * colors.length)];
+            
+            // Criar a nova conta
+            const { data: newAccount, error } = await this.supabase
+                .from('banks')
+                .insert({
+                    user_id: userId,
+                    name: accountName,
+                    balance: initialBalance,
+                    type: accountType,
+                    color: randomColor
+                })
+                .select()
+                .single();
+                
+            if (error) {
+                console.error('[CONTA] Erro ao criar conta:', error);
+                return `Eita! Deu um probleminha ao criar a conta 😅 ${error.message}`;
+            }
+            
+            console.log('[CONTA] Conta criada com sucesso:', newAccount);
+            
+            // Mapear o tipo da conta para texto amigável
+            const tipoTexto = {
+                'corrente': 'Conta Corrente',
+                'poupanca': 'Conta Poupança',
+                'investimento': 'Conta de Investimento',
+                'salario': 'Conta Salário'
+            }[accountType];
+            
+            return `✅ Conta bancária criada com sucesso!
+
+🏦 Nome: ${accountName}
+💰 Saldo inicial: R$ ${initialBalance.toFixed(2)}
+📝 Tipo: ${tipoTexto}
+
+Agora você pode usar essa conta nos seus registros. Por exemplo:
+"Gastei 50 reais da conta ${accountName}" ou "Recebi 1000 reais na conta ${accountName}"`;
+        } catch (error) {
+            console.error('[CONTA] Erro ao processar criação de conta:', error);
+            return `Eita! Deu um probleminha ao criar a conta bancária 😅 ${error.message}`;
         }
     }
 }

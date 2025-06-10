@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { BankAccount, SaveableBankAccountData } from '../types/finances';
 import { AuthContext } from './AuthContext';
@@ -35,6 +35,7 @@ interface BankAccountContextType {
   removeAccount: (accountId: string) => Promise<void>;
   setHighlightedAccountIds: (ids: string[]) => void;
   getAccountById: (accountId: string) => BankAccount | undefined;
+  refreshAccounts: () => Promise<void>;
 }
 
 const BankAccountContext = createContext<BankAccountContextType | undefined>(undefined);
@@ -182,6 +183,11 @@ export const BankAccountProvider = ({ children }: { children: ReactNode }) => {
     setHighlightedAccountIdsState(ids);
   };
 
+  // Expor a função fetchAccounts como refreshAccounts
+  const refreshAccounts = async () => {
+    return fetchAccounts();
+  };
+
   return (
     <BankAccountContext.Provider 
       value={{
@@ -191,7 +197,8 @@ export const BankAccountProvider = ({ children }: { children: ReactNode }) => {
         addAccount,
         removeAccount,
         getAccountById,
-        setHighlightedAccountIds
+        setHighlightedAccountIds,
+        refreshAccounts
       }}
     >
       {children}

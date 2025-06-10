@@ -1,16 +1,16 @@
 import { ArrowDownLeft, ArrowUpRight, X } from 'lucide-react';
 import { ChangeEvent, useEffect, useState } from 'react';
+import { useBankAccounts } from '../../contexts/BankAccountContext';
 import { Category } from '../../contexts/CategoryContext';
 import { Transaction } from '../../contexts/TransactionContext';
 import { useAuth } from '../../hooks/useAuth';
 import { useSubscription } from '../../hooks/useSubscription';
 import { supabase } from '../../lib/supabase';
+import { formatCurrency } from '../../utils/formatCurrency';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
-import Select from '../ui/Select';
-import { useBankAccounts } from '../../contexts/BankAccountContext';
 import Label from '../ui/Label';
-import { formatCurrency } from '../../utils/formatCurrency';
+import Select from '../ui/Select';
 
 interface CreditCard {
   id: string;
@@ -39,8 +39,11 @@ export default function NewTransactionModal({
   const [categoryId, setCategoryId] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedCardId, setSelectedCardId] = useState<string>('');
+  const [selectedBankId, setSelectedBankId] = useState<string>('');
   const [creditCards, setCreditCards] = useState<CreditCard[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'pix'>('card');
+  const [isInstallment, setIsInstallment] = useState<boolean>(false);
+  const [installmentsTotal, setInstallmentsTotal] = useState<number>(1);
   const { accounts } = useBankAccounts();
   
   const { user } = useAuth();
@@ -93,9 +96,30 @@ export default function NewTransactionModal({
       setAmount(String(transactionToEdit.amount));
       setCategoryId(transactionToEdit.category_id);
       setDate(new Date(transactionToEdit.date).toISOString().split('T')[0]);
-      setSelectedCardId(transactionToEdit.bank_id || '');
-      // Se tem bank_id, é cartão, senão é PIX
-      setPaymentMethod(transactionToEdit.bank_id ? 'card' : 'pix');
+      
+      // Definir corretamente o cartão de crédito ou conta bancária
+      if (transactionToEdit.credit_card_id) {
+        setSelectedCardId(transactionToEdit.credit_card_id);
+        setSelectedBankId(transactionToEdit.bank_id || '');
+        setPaymentMethod('card');
+      } else if (transactionToEdit.bank_id) {
+        setSelectedCardId('');
+        setSelectedBankId(transactionToEdit.bank_id);
+        setPaymentMethod('pix');
+      } else {
+        setSelectedCardId('');
+        setSelectedBankId('');
+        setPaymentMethod('pix');
+      }
+      
+      // Configurar parcelamento se for uma transação parcelada
+      if (transactionToEdit.installments_total && transactionToEdit.installments_total > 1) {
+        setIsInstallment(true);
+        setInstallmentsTotal(transactionToEdit.installments_total);
+      } else {
+        setIsInstallment(false);
+        setInstallmentsTotal(1);
+      }
     }
   }, [isEditMode, transactionToEdit]);
 
@@ -109,21 +133,34 @@ export default function NewTransactionModal({
       return;
     }
 
-    // Definir o bank_id com base no método de pagamento e seleção
-    let bankId = undefined;
-    if (paymentMethod === 'card') {
-      // Para cartão, usamos o ID do cartão selecionado
-      bankId = selectedCardId;
-    } else {
-      // Para outros métodos (PIX), usamos a conta bancária selecionada
-      bankId = selectedCardId || undefined;
-      
-      // Verificar se uma conta bancária foi selecionada para métodos que não são cartão
-      if (!bankId && paymentMethod === 'pix') {
-        alert("Por favor, selecione uma conta bancária para transações via PIX.");
-        return;
-      }
+    // Definir o bank_id ou credit_card_id com base no método de pagamento e seleção
+    let bankId = null; // Para contas bancárias
+    let creditCardId = null; // Para cartões de crédito
+    
+    // Definir cartão de crédito se for o método de pagamento escolhido
+    if (paymentMethod === 'card' && selectedCardId && selectedCardId.trim() !== '') {
+      creditCardId = selectedCardId;
+      console.log("Transação vinculada ao cartão de crédito:", selectedCardId);
     }
+    
+    // Definir conta bancária se foi selecionada
+    if (selectedBankId && selectedBankId.trim() !== '') {
+      bankId = selectedBankId;
+      console.log("Transação vinculada à conta bancária:", selectedBankId);
+    }
+    
+    // Para método PIX, garantir que a conta bancária seja usada
+    if (paymentMethod === 'pix' && selectedBankId && selectedBankId.trim() !== '') {
+      bankId = selectedBankId;
+      console.log("Transação PIX vinculada à conta bancária:", selectedBankId);
+    }
+    
+    // Log para debug
+    console.log('Método de pagamento:', paymentMethod);
+    console.log('Cartão selecionado:', selectedCardId);
+    console.log('Banco selecionado:', selectedBankId);
+    console.log('Bank ID final:', bankId);
+    console.log('Credit Card ID final:', creditCardId);
 
     // Converter o valor para número, tratando tanto vírgula quanto ponto
     let numericAmount = amount;
@@ -132,14 +169,45 @@ export default function NewTransactionModal({
     // Remove pontos extras (separadores de milhar)
     numericAmount = numericAmount.replace(/\.(?=.*\.)/g, '');
     
-    const transactionData = {
+    // Valor numérico parseado
+    const parsedAmount = parseFloat(numericAmount);
+    
+    // Preparar os dados para envio
+    const transactionData: any = {
       type,
       description,
-      amount: parseFloat(numericAmount),
+      amount: parsedAmount,
       date,
-      bank_id: bankId,
       category_id: categoryId,
     };
+    
+    // Adicionar bank_id se um valor válido foi selecionado
+    if (bankId && typeof bankId === 'string' && bankId.trim() !== '') {
+      transactionData.bank_id = bankId;
+    }
+    
+    // Adicionar credit_card_id se um valor válido foi selecionado
+    if (creditCardId && typeof creditCardId === 'string' && creditCardId.trim() !== '') {
+      transactionData.credit_card_id = creditCardId;
+    }
+    
+    // Adicionar informações de parcelamento se for parcelado
+    if (paymentMethod === 'card' && isInstallment && installmentsTotal > 1) {
+      // Adicionar detalhes do parcelamento
+      transactionData.description = `${description} (Parcela 1/${installmentsTotal})`;
+      transactionData.installments_total = installmentsTotal;
+      
+      // Calculamos o valor de cada parcela dividindo o valor total pelo número de parcelas
+      // Armazenamos o valor original (valor total) para uso posterior
+      const totalValue = parsedAmount;
+      const installmentValue = totalValue / installmentsTotal;
+      
+      // Atualizamos o valor da transação para ser o valor da parcela
+      transactionData.amount = parseFloat(installmentValue.toFixed(2));
+      transactionData.original_amount = totalValue;
+      
+      console.log(`Transação parcelada: ${installmentsTotal}x de ${transactionData.amount}, Total: ${totalValue}`);
+    }
 
     console.log('Enviando transação:', transactionData); // Log para debug
     onSubmit(transactionData);
@@ -152,6 +220,8 @@ export default function NewTransactionModal({
     setDate(new Date().toISOString().split('T')[0]);
     setSelectedCardId('');
     setPaymentMethod('card');
+    setIsInstallment(false);
+    setInstallmentsTotal(1);
     onClose();
   };
 
@@ -343,18 +413,76 @@ export default function NewTransactionModal({
                 </div>
                 
                 {paymentMethod === 'card' && (
-                  <Select
-                    id="cardId"
-                    value={selectedCardId}
-                    onChange={(e) => setSelectedCardId(e.target.value)}
-                  >
-                    <option value="">Selecione um cartão</option>
-                    {creditCards.map(card => (
-                      <option key={card.id} value={card.id}>
-                        {card.name} {card.lastFourDigits ? `(${card.lastFourDigits})` : ''}
-                      </option>
-                    ))}
-                  </Select>
+                  <>
+                    <Select
+                      id="cardId"
+                      value={selectedCardId}
+                      onChange={(e) => setSelectedCardId(e.target.value)}
+                    >
+                      <option value="">Selecione um cartão</option>
+                      {creditCards.map(card => (
+                        <option key={card.id} value={card.id}>
+                          {card.name} {card.lastFourDigits ? `(${card.lastFourDigits})` : ''}
+                        </option>
+                      ))}
+                    </Select>
+                    
+                    {/* Opção de Parcelamento */}
+                    <div className="mt-4">
+                      <div className="flex items-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-750 transition-all">
+                        <input
+                          type="checkbox"
+                          id="isInstallment"
+                          checked={isInstallment}
+                          onChange={(e) => setIsInstallment(e.target.checked)}
+                          className="h-5 w-5 rounded-md border-2 border-gray-300 checked:border-primary-500 checked:bg-primary-500 text-white focus:ring-primary-500 focus:ring-offset-1 focus:ring-2 transition-colors appearance-none relative after:absolute after:content-['✓'] after:text-white after:font-bold after:text-sm after:top-[-1px] after:left-[3px] after:opacity-0 checked:after:opacity-100"
+                        />
+                        <label htmlFor="isInstallment" className="flex items-center ml-3 text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer">
+                          <span className="mr-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary-500">
+                              <rect x="2" y="5" width="20" height="14" rx="2" />
+                              <line x1="2" y1="10" x2="22" y2="10" />
+                            </svg>
+                          </span>
+                          Compra Parcelada
+                        </label>
+                      </div>
+                      
+                      {isInstallment && (
+                        <div className="mt-3 ml-8 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                          <label htmlFor="installmentsTotal" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Número de Parcelas
+                          </label>
+                          <Select
+                            id="installmentsTotal"
+                            value={installmentsTotal.toString()}
+                            onChange={(e) => setInstallmentsTotal(parseInt(e.target.value))}
+                            required={isInstallment}
+                            className="border-gray-300 focus:border-primary-500 focus:ring focus:ring-primary-200 rounded-md shadow-sm"
+                          >
+                            {[...Array(12)].map((_, i) => (
+                              <option key={i + 2} value={i + 2}>
+                                {i + 2}x {amount ? `de ${formatCurrency(parseFloat(amount.replace(',', '.')) / (i + 2))}` : ''}
+                              </option>
+                            ))}
+                          </Select>
+                          <p className="text-xs text-gray-500 mt-2 flex items-center">
+                            <span className="mr-1">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="12" y1="8" x2="12" y2="12"></line>
+                                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                              </svg>
+                            </span>
+                            Valor total: {amount ? formatCurrency(parseFloat(amount.replace(',', '.'))) : 'R$ 0,00'}
+                          </p>
+                          <p className="text-xs text-amber-600 mt-2">
+                            <span>⚠️</span> O valor total da compra (acima) será descontado do limite do cartão.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
             )}
@@ -383,22 +511,22 @@ export default function NewTransactionModal({
               </Label>
               <Select
                 id="bankId"
-                value={selectedCardId}
-                onChange={(e) => setSelectedCardId(e.target.value)}
+                value={selectedBankId}
+                onChange={(e) => setSelectedBankId(e.target.value)}
                 required={paymentMethod !== 'card'} // Torna obrigatório apenas se não for cartão
               >
-                <option value="">Selecione uma conta</option>
+                <option value="">Nenhuma (sem vínculo com conta)</option>
                 {accounts.map(account => (
                   <option key={account.id} value={account.id}>
                     {account.bankName} ({formatCurrency(account.balance)})
                   </option>
                 ))}
               </Select>
-              {paymentMethod === 'card' && (
-                <p className="text-xs text-gray-500 mt-1">
-                  Opcional para pagamentos com cartão de crédito
-                </p>
-              )}
+              <p className="text-xs text-gray-500 mt-1">
+                {paymentMethod === 'card' 
+                  ? 'Opcional para pagamentos com cartão de crédito' 
+                  : 'Selecione "Nenhuma" se não quiser vincular a uma conta'}
+              </p>
             </div>
 
             {/* Botões */}

@@ -1,13 +1,14 @@
 import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  useCallback,
-  ReactNode,
+    createContext,
+    ReactNode,
+    useCallback,
+    useContext,
+    useEffect,
+    useState,
 } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
+import { useBankAccounts } from './BankAccountContext';
 
 // Definindo o tipo localmente para evitar problemas com o arquivo global
 export interface Transaction {
@@ -20,6 +21,11 @@ export interface Transaction {
   category: string;
   bank_id?: string;
   category_id: string;
+  installments_total?: number;
+  installment_number?: number;
+  original_amount?: number;
+  parent_transaction_id?: string;
+  credit_card_id?: string;
 }
 
 interface TransactionFilters {
@@ -42,8 +48,12 @@ const TransactionContext = createContext<TransactionContextData | undefined>(und
 
 const TRANSACTIONS_PER_PAGE = 20;
 
+// Criamos um evento personalizado para notificar atualizações de transações
+export const transactionUpdatedEvent = new CustomEvent('transaction-updated');
+
 export const TransactionProvider = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth();
+  const { refreshAccounts } = useBankAccounts();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [hasMore, setHasMore] = useState(false);
@@ -59,7 +69,7 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
     let query = supabase
       .from('transactions')
       .select(`
-        id, description, amount, date, type, user_id, category_id,
+        id, description, amount, date, type, user_id, category_id, bank_id, credit_card_id,
         categories (name)
       `)
       .eq('user_id', user.id)
@@ -135,16 +145,38 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
       const err = new Error("Usuário não autenticado");
       return { error: err };
     }
+    
+    // Criar uma cópia segura da transação
+    const safeTransaction = { ...transaction, user_id: user.id };
+    
+    console.log('Enviando transação completa:', safeTransaction);
+    
     const { error } = await supabase
       .from('transactions')
-      .insert([{ ...transaction, user_id: user.id }]);
+      .insert([safeTransaction]);
 
     if (error) {
       console.error('Erro ao adicionar transação:', error);
       return { error };
     }
     
+    // Atualizar as contas bancárias para refletir as mudanças
+    if (transaction.bank_id) {
+      console.log('Atualizando contas bancárias após transação PIX...');
+      try {
+        await refreshAccounts();
+        console.log('Contas bancárias atualizadas com sucesso!');
+      } catch (refreshError) {
+        console.error('Erro ao atualizar contas bancárias:', refreshError);
+      }
+    }
+    
     await loadTransactions(currentFilters);
+    
+    // Disparar um evento para notificar que uma transação foi adicionada
+    // Isso permitirá que outros componentes reajam à mudança
+    document.dispatchEvent(transactionUpdatedEvent);
+    
     return { error: null };
   };
 

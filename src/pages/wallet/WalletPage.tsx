@@ -40,10 +40,29 @@ export default function WalletPage() {
     fetchCreditCards();
   }, [user, navigate]);
 
+  // Adicionar listener para o evento de atualização de transação
+  useEffect(() => {
+    // Função para lidar com o evento de atualização de transação
+    const handleTransactionUpdated = () => {
+      console.log("WalletPage: Evento de transação atualizada detectado");
+      console.log("WalletPage: Recarregando dados dos cartões...");
+      fetchCreditCards(); // Recarregar os dados dos cartões quando uma transação for atualizada
+    };
+
+    // Adicionar listener
+    document.addEventListener('transaction-updated', handleTransactionUpdated);
+
+    // Remover listener quando o componente for desmontado
+    return () => {
+      document.removeEventListener('transaction-updated', handleTransactionUpdated);
+    };
+  }, []);
+
   const fetchCreditCards = async () => {
     if (!user) return;
     
     try {
+      console.log("WalletPage: Iniciando carregamento de cartões de crédito...");
       setIsLoading(true);
       const { data, error } = await supabase
         .from('credit_cards')
@@ -52,20 +71,32 @@ export default function WalletPage() {
         
       if (error) throw error;
       
+      console.log("WalletPage: Dados dos cartões recebidos:", data);
+      
       // Converter os dados para o formato CreditCardData
-      const formattedCards: CreditCardData[] = data.map(card => ({
-        id: card.id,
-        name: card.name,
-        brand: card.brand || 'outro',
-        lastFourDigits: card.last_four_digits,
-        limit: card.limit || 0,
-        currentSpending: card.current_spending || 0,
-        dueDate: card.due_date || 1,
-        closingDate: card.closing_date || 1,
-        color: card.color || '#6366F1'
-      }));
+      const formattedCards: CreditCardData[] = data.map(card => {
+        console.log(`WalletPage: Processando cartão ${card.name}, saldo atual: ${card.current_spending}, limite: ${card.limit}`);
+        return {
+          id: card.id,
+          name: card.name,
+          brand: card.brand || 'outro',
+          lastFourDigits: card.last_four_digits,
+          limit: card.limit || 0,
+          currentSpending: card.current_spending || 0,
+          dueDate: card.due_date || 1,
+          closingDate: card.closing_date || 1,
+          color: card.color || '#6366F1'
+        };
+      });
       
       setCardsData(formattedCards);
+      
+      // Forçar atualização dos valores calculados
+      const total = formattedCards.reduce((total, card) => total + (card.limit || 0), 0);
+      const available = formattedCards.reduce((total, card) => total + ((card.limit || 0) - (card.currentSpending || 0)), 0);
+      
+      console.log(`WalletPage: Limite total atualizado: ${total}, Disponível: ${available}`);
+      
     } catch (error) {
       console.error('Erro ao buscar cartões de crédito:', error);
     } finally {
@@ -175,8 +206,15 @@ export default function WalletPage() {
     }
   };
 
+  // Calcular o limite total dos cartões
   const totalCardLimit = cardsData.reduce(
     (total, card) => total + (card.limit || 0),
+    0
+  );
+
+  // Calcular o limite total disponível (limite total - gastos atuais)
+  const totalAvailableLimit = cardsData.reduce(
+    (total, card) => total + ((card.limit || 0) - (card.currentSpending || 0)),
     0
   );
 
@@ -195,7 +233,7 @@ export default function WalletPage() {
         <Card className="p-6">
           <h2 className="text-lg font-semibold mb-2">Limite Total</h2>
           <p className="text-3xl font-bold text-secondary-600 dark:text-secondary-400">
-            {formatCurrency(totalCardLimit)}
+            {formatCurrency(totalAvailableLimit)}
           </p>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             Em todos os cartões
@@ -220,7 +258,7 @@ export default function WalletPage() {
           )}
         </div>
 
-      <div className="mb-6">
+      
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
           <div>
             <h2 className="text-xl font-semibold mb-1">Cartões de Crédito</h2>
@@ -285,7 +323,7 @@ export default function WalletPage() {
           ))}
         </div>
         )}
-      </div>
+      
 
       {/* Modais */}
         <AddCardModal 
