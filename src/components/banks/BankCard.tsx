@@ -1,8 +1,10 @@
-import { Clock, CreditCard, Eye, EyeOff, History, Trash2 } from 'lucide-react';
+import { Clock, CreditCard, Eye, EyeOff, History, Pencil, Trash2 } from 'lucide-react';
 import { useState } from 'react';
+import { useBanks } from '../../hooks/useBanks';
+import type { BankAccount } from '../../types/finances';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { getBankInitials } from '../../utils/strings';
-import type { BankAccount } from '../../types/finances';
+import BankFormModal from './BankFormModal';
 import BankHistoryModal from './BankHistoryModal';
 
 interface BankCardProps {
@@ -14,14 +16,19 @@ interface BankCardProps {
 export default function BankCard({ bank, onViewTransactions, onRemoveRequest }: BankCardProps) {
   const [showBalance, setShowBalance] = useState(true);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const { updateBank } = useBanks();
 
-  const getAccountTypeLabel = (type: 'checking' | 'savings' | 'investment') => {
+  const getAccountTypeLabel = (type: string) => {
     switch (type) {
       case 'checking':
+      case 'corrente':
         return 'Conta Corrente';
       case 'savings':
+      case 'poupanca':
         return 'Conta Poupança';
       case 'investment':
+      case 'investimento':
         return 'Conta Investimento';
       default:
         return type;
@@ -31,6 +38,35 @@ export default function BankCard({ bank, onViewTransactions, onRemoveRequest }: 
   const handleViewTransactions = () => {
     // Abre o modal de histórico em vez de chamar a função original
     setShowHistoryModal(true);
+  };
+
+  const handleEditBank = async (formData: {
+    name: string;
+    type: 'corrente' | 'poupanca' | 'investimento';
+    accountNumber: string;
+    agency: string;
+    balance: number;
+    color: string;
+  }) => {
+    try {
+      // Adaptar os dados do formulário para o formato esperado pelo banco de dados
+      const bankData = {
+        name: formData.name,
+        type: formData.type,
+        account: formData.accountNumber,
+        agency: formData.agency,
+        balance: formData.balance,
+        color: formData.color
+      };
+
+      // Chamar a função de atualização
+      await updateBank(bank.id, bankData);
+      
+      // Fechar o modal
+      setShowEditModal(false);
+    } catch (error) {
+      console.error('Erro ao atualizar banco:', error);
+    }
   };
 
   return (
@@ -65,6 +101,13 @@ export default function BankCard({ bank, onViewTransactions, onRemoveRequest }: 
 
           {/* Ações */}
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              onClick={() => setShowEditModal(true)}
+              className="p-2 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-700/50 transition-colors"
+              title="Editar conta"
+            >
+              <Pencil className="h-4 w-4 text-blue-500 dark:text-blue-400" />
+            </button>
             <button
               onClick={() => onRemoveRequest(bank.id)}
               className="p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-700/50 transition-colors"
@@ -153,6 +196,21 @@ export default function BankCard({ bank, onViewTransactions, onRemoveRequest }: 
         isOpen={showHistoryModal} 
         onClose={() => setShowHistoryModal(false)} 
         bank={bank}
+      />
+
+      {/* Modal de Edição */}
+      <BankFormModal
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        onSubmit={handleEditBank}
+        initialData={{
+          name: bank.bankName,
+          type: (bank.accountType as 'corrente' | 'poupanca' | 'investimento') || 'corrente',
+          accountNumber: bank.accountNumber || '',
+          agency: bank.agency || '',
+          balance: bank.balance || 0,
+          color: bank.color || '#000000'
+        }}
       />
     </div>
   );

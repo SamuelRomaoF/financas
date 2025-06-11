@@ -1,9 +1,12 @@
-import { ArrowDownRight, ArrowUpRight, Building2, History, Plus } from 'lucide-react';
+import { History, Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { toast } from 'react-hot-toast';
+import { useBanks } from '../../hooks/useBanks';
 import { supabase } from '../../lib/supabase';
-import { formatCurrency } from '../../utils/formatCurrency';
+import { BankAccount, SaveableBankAccountData } from '../../types/finances';
 import Button from '../ui/Button';
-import { Card, CardContent } from '../ui/Card';
+import AddBankAccountModal from './AddBankAccountModal';
+import BankCard from './BankCard';
 
 interface Transaction {
   id: string;
@@ -13,13 +16,8 @@ interface Transaction {
   date: string;
 }
 
-interface BankAccount {
-  id: string;
-  bankName: string;
-  accountType: string;
-  accountNumber: string;
-  balance: number;
-  color: string;
+// Extender o tipo BankAccount para incluir recentTransactions
+interface ExtendedBankAccount extends BankAccount {
   recentTransactions: Transaction[];
 }
 
@@ -40,8 +38,11 @@ interface BankAccountManagerProps {
 
 export default function BankAccountManager({ refreshTrigger = 0 }: BankAccountManagerProps) {
   const [showTransactions, setShowTransactions] = useState<string | null>(null);
-  const [accounts, setAccounts] = useState<BankAccount[]>([]);
+  const [accounts, setAccounts] = useState<ExtendedBankAccount[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showAddModal, setShowAddModal] = useState(false);
+  
+  const { deleteBank } = useBanks();
 
   // Buscar contas bancárias do usuário
   const fetchBankAccounts = async () => {
@@ -78,11 +79,14 @@ export default function BankAccountManager({ refreshTrigger = 0 }: BankAccountMa
             console.error(`Erro ao buscar transações para o banco ${bank.id}:`, transactionError);
             return {
               id: bank.id,
+              userId: bank.user_id || '',
               bankName: bank.name,
-              accountType: bank.type || 'corrente',
+              accountType: (bank.type || 'corrente') as 'checking' | 'savings' | 'investment',
               accountNumber: bank.account || 'Sem número',
               balance: bank.balance || 0,
+              currency: 'BRL', // Padrão para Brasil
               color: bank.color || '#333333',
+              agency: bank.agency || 'N/A',
               recentTransactions: []
             };
           }
@@ -91,11 +95,14 @@ export default function BankAccountManager({ refreshTrigger = 0 }: BankAccountMa
           
           return {
             id: bank.id,
+            userId: bank.user_id || '',
             bankName: bank.name,
-            accountType: bank.type || 'corrente',
+            accountType: (bank.type || 'corrente') as 'checking' | 'savings' | 'investment',
             accountNumber: bank.account || 'Sem número',
             balance: bank.balance || 0,
+            currency: 'BRL', // Padrão para Brasil
             color: bank.color || '#333333',
+            agency: bank.agency || 'N/A',
             recentTransactions: transactionData || []
           };
         })
@@ -142,11 +149,14 @@ export default function BankAccountManager({ refreshTrigger = 0 }: BankAccountMa
         
         return {
           id: bank.id,
+          userId: bank.user_id || '',
           bankName: bank.name,
-          accountType: bank.type || 'corrente',
+          accountType: (bank.type || 'corrente') as 'checking' | 'savings' | 'investment',
           accountNumber: bank.account || 'Sem número',
           balance: bank.balance || 0,
+          currency: 'BRL', // Padrão para Brasil
           color: bank.color || '#333333',
+          agency: bank.agency || 'N/A',
           recentTransactions: currentAccount?.recentTransactions || []
         };
       });
@@ -169,6 +179,59 @@ export default function BankAccountManager({ refreshTrigger = 0 }: BankAccountMa
     return () => clearInterval(refreshInterval);
   }, [accounts]);
 
+  // Criar um ouvinte para o evento de atualização de banco
+  useEffect(() => {
+    const handleBankUpdated = () => {
+      fetchBankAccounts();
+    };
+
+    // Adicionar ouvinte
+    document.addEventListener('bank-updated', handleBankUpdated);
+
+    // Limpar ouvinte ao desmontar
+    return () => {
+      document.removeEventListener('bank-updated', handleBankUpdated);
+    };
+  }, []);
+
+  const handleRemoveBank = async (bankId: string) => {
+    if (window.confirm('Tem certeza que deseja remover esta conta bancária?')) {
+      const result = await deleteBank(bankId);
+      if (!result.error) {
+        // Atualizar a lista de bancos
+        fetchBankAccounts();
+      }
+    }
+  };
+
+  const handleSaveAccount = async (accountData: SaveableBankAccountData) => {
+    try {
+      const { data, error } = await supabase
+        .from('banks')
+        .insert({
+          name: accountData.bankName,
+          type: accountData.accountType === 'checking' ? 'corrente' : 
+                accountData.accountType === 'savings' ? 'poupanca' : 
+                'investimento',
+          account: accountData.accountNumber,
+          agency: accountData.agency,
+          balance: accountData.balance,
+          color: accountData.color,
+          user_id: accountData.userId
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      
+      toast.success('Conta bancária adicionada com sucesso!');
+      fetchBankAccounts();
+    } catch (error) {
+      console.error('Erro ao adicionar conta bancária:', error);
+      toast.error('Erro ao adicionar conta bancária');
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -187,6 +250,7 @@ export default function BankAccountManager({ refreshTrigger = 0 }: BankAccountMa
           <Button 
             variant="primary" 
             className="flex items-center gap-2"
+            onClick={() => setShowAddModal(true)}
           >
             <Plus className="h-4 w-4" />
             Adicionar Conta
@@ -205,107 +269,22 @@ export default function BankAccountManager({ refreshTrigger = 0 }: BankAccountMa
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {accounts.map(account => (
-            <Card key={account.id} className="bg-white dark:bg-gray-800">
-              <CardContent className="p-6">
-                <div className="flex justify-between items-start mb-6">
-                  <div className="flex items-center gap-3">
-                    <div 
-                      className="w-10 h-10 flex items-center justify-center rounded-lg"
-                      style={{ backgroundColor: account.color || '#f3f4f6' }}
-                    >
-                      <Building2 className="h-6 w-6 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-900 dark:text-white">
-                        {account.bankName}
-                      </h3>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {account.accountType === 'corrente' ? 'Conta Corrente' : 
-                         account.accountType === 'poupanca' ? 'Poupança' : 
-                         account.accountType === 'investimento' ? 'Investimentos' : 
-                         account.accountType}
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => toggleTransactions(account.id)}
-                    className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                  >
-                    <History className="h-5 w-5" />
-                  </button>
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Saldo Disponível</p>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                      {formatCurrency(account.balance)}
-                    </p>
-                  </div>
-
-                  <div className="text-sm text-gray-500 dark:text-gray-400">
-                    Conta: {account.accountNumber}
-                  </div>
-
-                  {showTransactions === account.id && (
-                    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                      <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
-                        Transações Recentes
-                      </h4>
-                      
-                      {account.recentTransactions.length > 0 ? (
-                        <div className="space-y-3">
-                          {account.recentTransactions.map(transaction => (
-                            <div 
-                              key={transaction.id}
-                              className="flex items-center justify-between"
-                            >
-                              <div className="flex items-center gap-3">
-                                <div className={`w-8 h-8 rounded-full flex items-center justify-center
-                                  ${transaction.type === 'income' 
-                                    ? 'bg-success-100 text-success-600 dark:bg-success-900/30 dark:text-success-400'
-                                    : 'bg-error-100 text-error-600 dark:bg-error-900/30 dark:text-error-400'
-                                  }`}
-                                >
-                                  {transaction.type === 'income' 
-                                    ? <ArrowUpRight className="h-4 w-4" />
-                                    : <ArrowDownRight className="h-4 w-4" />
-                                  }
-                                </div>
-                                <div>
-                                  <p className="font-medium text-gray-900 dark:text-white">
-                                    {transaction.description || 'Sem descrição'}
-                                  </p>
-                                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                                    {new Date(transaction.date).toLocaleDateString('pt-BR')}
-                                  </p>
-                                </div>
-                              </div>
-                              <p className={`font-medium
-                                ${transaction.type === 'income'
-                                  ? 'text-success-600 dark:text-success-400'
-                                  : 'text-error-600 dark:text-error-400'
-                                }`}
-                              >
-                                {transaction.type === 'income' ? '+' : '-'}
-                                {formatCurrency(transaction.amount)}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Nenhuma transação recente encontrada.
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+            <BankCard 
+              key={account.id}
+              bank={account}
+              onViewTransactions={() => toggleTransactions(account.id)}
+              onRemoveRequest={handleRemoveBank}
+            />
           ))}
         </div>
       )}
+      
+      {/* Modal para adicionar nova conta */}
+      <AddBankAccountModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onSaveAccount={handleSaveAccount}
+      />
     </div>
   );
 } 

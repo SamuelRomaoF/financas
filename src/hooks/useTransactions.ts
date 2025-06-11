@@ -9,8 +9,17 @@ type Transaction = Database['public']['Tables']['transactions']['Row'];
 type InsertTransaction = Database['public']['Tables']['transactions']['Insert'];
 type UpdateTransaction = Database['public']['Tables']['transactions']['Update'];
 
+// Adicionar uma interface estendida para as transações com campos adicionais
+interface ExtendedTransaction extends Transaction {
+  parent_transaction_id?: string;
+  installment_number?: number;
+  installments_total?: number;
+  original_amount?: number;
+  credit_card_id?: string;
+}
+
 export function useTransactions() {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [transactions, setTransactions] = useState<ExtendedTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
 
@@ -381,7 +390,7 @@ export function useTransactions() {
             // Criar objeto para a parcela atual
             const installmentData = {
               ...transactionData,
-              description: `${transactionData.description.replace(/\s\(\d+\/\d+\)$/, '')} (${i}/${totalInstallments})`,
+              description: `${transactionData.description?.replace(/\s\(\d+\/\d+\)$/, '') || 'Compra parcelada'} (${i}/${totalInstallments})`,
               date: installmentDate.toISOString().split('T')[0],
               amount: installmentAmount,
               installment_number: i,
@@ -532,7 +541,7 @@ export function useTransactions() {
           if (updatedTransactions) {
             setTransactions(prev => {
               const filtered = prev.filter(t => 
-                t.id !== parentId && (!t.parent_transaction_id || t.parent_transaction_id !== parentId)
+                t.id !== parentId && (!(t as ExtendedTransaction).parent_transaction_id || (t as ExtendedTransaction).parent_transaction_id !== parentId)
               );
               return [...updatedTransactions, ...filtered];
             });
@@ -699,11 +708,11 @@ export function useTransactions() {
           // Atualizar o estado removendo todas as transações excluídas
           if (isParent) {
             setTransactions(prev => prev.filter(t => 
-              t.id !== id && t.parent_transaction_id !== id
+              t.id !== id && (t as ExtendedTransaction).parent_transaction_id !== id
             ));
           } else {
             setTransactions(prev => prev.filter(t => 
-              t.id !== transaction.parent_transaction_id && t.parent_transaction_id !== transaction.parent_transaction_id
+              t.id !== transaction.parent_transaction_id && (t as ExtendedTransaction).parent_transaction_id !== transaction.parent_transaction_id
             ));
           }
           
@@ -809,4 +818,4 @@ export function useTransactions() {
     deleteTransaction,
     payCardBill,
   };
-} 
+}

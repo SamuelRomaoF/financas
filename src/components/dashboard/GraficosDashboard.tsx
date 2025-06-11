@@ -1,17 +1,17 @@
 import {
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Tooltip,
-  Legend,
-  BarChart,
-  XAxis,
-  YAxis,
-  Bar,
+    Bar,
+    BarChart,
+    Cell,
+    Legend,
+    Pie,
+    PieChart,
+    ResponsiveContainer,
+    Tooltip,
+    XAxis,
+    YAxis,
 } from 'recharts';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
 import { formatCurrency } from '../../utils/formatCurrency';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
 
 interface TransactionDataPoint {
   name: string;
@@ -32,12 +32,40 @@ interface GraficosDashboardProps {
   showBarChart?: boolean;
 }
 
+// Função para renderizar os rótulos do gráfico de forma mais inteligente
+const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, index, name, value }: any) => {
+  // Se o valor for zero ou muito pequeno, não exibe o rótulo
+  if (value === 0 || percent < 0.05) return null;
+
+  const RADIAN = Math.PI / 180;
+  // Calcular posição do texto para evitar sobreposição
+  const radius = innerRadius + (outerRadius - innerRadius) * 1.1;
+  const x = cx + radius * Math.cos(-midAngle * RADIAN);
+  const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+  return (
+    <text
+      x={x}
+      y={y}
+      fill="#333"
+      textAnchor={x > cx ? 'start' : 'end'}
+      dominantBaseline="central"
+      fontSize="12"
+    >
+      {`${name} ${(percent * 100).toFixed(0)}%`}
+    </text>
+  );
+};
+
 export default function GraficosDashboard({
   transactionData,
   monthlyData,
   showPieChart = true,
   showBarChart = true,
 }: GraficosDashboardProps) {
+  // Filtrar dados para remover categorias com valor zero
+  const filteredTransactionData = transactionData.filter(item => item.value > 0);
+  
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {showPieChart && (
@@ -46,28 +74,34 @@ export default function GraficosDashboard({
             <CardTitle>Despesas por Categoria</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={transactionData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  >
-                    {transactionData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value) => formatCurrency(value as number)} />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
+            {filteredTransactionData.length > 0 ? (
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={filteredTransactionData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                      label={renderCustomizedLabel}
+                    >
+                      {filteredTransactionData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value) => formatCurrency(value as number)} />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="h-80 flex items-center justify-center text-gray-500 dark:text-gray-400">
+                Nenhuma despesa registrada nas categorias
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
