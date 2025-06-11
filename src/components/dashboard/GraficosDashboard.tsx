@@ -57,6 +57,12 @@ const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, per
   );
 };
 
+// Função personalizada para renderizar a legenda com as cores corretas
+const renderColorfulLegendText = (value: string, entry: any) => {
+  const { color } = entry;
+  return <span style={{ color }}>{value}</span>;
+};
+
 export default function GraficosDashboard({
   transactionData,
   monthlyData,
@@ -92,8 +98,26 @@ export default function GraficosDashboard({
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(value) => formatCurrency(value as number)} />
-                    <Legend />
+                    <Tooltip 
+                      formatter={(value) => formatCurrency(value as number)}
+                      contentStyle={{ 
+                        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                        border: '1px solid #ccc',
+                        borderRadius: '4px',
+                        padding: '8px'
+                      }}
+                      itemStyle={{ color: '#333' }}
+                    />
+                    <Legend 
+                      formatter={renderColorfulLegendText}
+                      iconType="circle"
+                      layout="vertical"
+                      verticalAlign="middle"
+                      align="right"
+                      wrapperStyle={{
+                        paddingLeft: '10px',
+                      }}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
