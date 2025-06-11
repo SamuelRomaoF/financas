@@ -1,12 +1,12 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import DashboardHeader from '../../components/dashboard/DashboardHeader';
-import ResumoFinanceiro from '../../components/dashboard/ResumoFinanceiro';
 import GraficosDashboard from '../../components/dashboard/GraficosDashboard';
+import ResumoFinanceiro from '../../components/dashboard/ResumoFinanceiro';
 import { useTransactions } from '../../contexts/TransactionContext';
 import { CATEGORY_COLORS } from '../../utils/categoryColors';
 
 export default function GratisDashboard() {
-  const { transactions, isLoading } = useTransactions();
+  const { transactions, isLoading, refreshTransactions } = useTransactions();
 
   const summaryData = useMemo(() => {
     const currentDate = new Date();
@@ -50,6 +50,12 @@ export default function GratisDashboard() {
     }));
   }, [transactions]);
 
+  // Função para atualizar o dashboard
+  const refreshDashboard = useCallback(async () => {
+    if (refreshTransactions) {
+      await refreshTransactions();
+    }
+  }, [refreshTransactions]);
 
   if (isLoading) {
     return (
@@ -61,7 +67,7 @@ export default function GratisDashboard() {
 
   return (
     <div className="space-y-6">
-      <DashboardHeader planName="Gratuito" />
+      <DashboardHeader planName="Gratuito" onRefresh={refreshDashboard} />
       <ResumoFinanceiro summaryData={summaryData} showSavings={false} /> 
       <GraficosDashboard 
         transactionData={expenseByCategoryData} 

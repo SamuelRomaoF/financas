@@ -42,6 +42,7 @@ interface TransactionContextData {
   addTransaction: (transaction: Omit<Transaction, 'id' | 'user_id' | 'category'>) => Promise<{ error: any }>;
   updateTransaction: (id: string, updates: Omit<Transaction, 'id' | 'user_id' | 'category'>) => Promise<{ error: any }>;
   removeTransaction: (id: string) => Promise<{ error: any }>;
+  refreshTransactions: () => Promise<void>;
 }
 
 const TransactionContext = createContext<TransactionContextData | undefined>(undefined);
@@ -210,8 +211,24 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
     return { error: null };
   };
 
+  const refreshTransactions = useCallback(async () => {
+    await loadTransactions(currentFilters);
+  }, [loadTransactions, currentFilters]);
+
   return (
-    <TransactionContext.Provider value={{ transactions, isLoading, hasMore, loadTransactions, loadMoreTransactions, addTransaction, updateTransaction, removeTransaction }}>
+    <TransactionContext.Provider
+      value={{
+        transactions,
+        isLoading,
+        hasMore,
+        loadTransactions,
+        loadMoreTransactions,
+        addTransaction,
+        updateTransaction,
+        removeTransaction,
+        refreshTransactions,
+      }}
+    >
       {children}
     </TransactionContext.Provider>
   );

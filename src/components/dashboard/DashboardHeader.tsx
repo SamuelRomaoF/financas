@@ -1,61 +1,36 @@
-import { PlusCircle, RefreshCcw } from 'lucide-react';
+import { PlusCircle, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { useAuth } from '../../hooks/useAuth';
-import { supabase } from '../../lib/supabase';
-import Button from '../ui/Button';
-import NewTransactionModal from '../transactions/NewTransactionModal';
 import { useCategories } from '../../contexts/CategoryContext';
 import { useTransactions } from '../../contexts/TransactionContext';
+import { useAuth } from '../../hooks/useAuth';
+import NewTransactionModal from '../transactions/NewTransactionModal';
+import Button from '../ui/Button';
 
 interface DashboardHeaderProps {
   planName: string;
+  onRefresh?: () => Promise<void>;
 }
 
-export default function DashboardHeader({ planName }: DashboardHeaderProps) {
+export default function DashboardHeader({ planName, onRefresh }: DashboardHeaderProps) {
   const { user } = useAuth();
-  const [resetting, setResetting] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
   const { categories } = useCategories();
   const { addTransaction } = useTransactions();
 
-  const handleForceBasicPlan = async () => {
-    if (!user) return;
+  const handleRefreshDashboard = async () => {
+    if (!onRefresh) return;
     
-    setResetting(true);
+    setRefreshing(true);
     try {
-      // Atualizar o plano para básico
-      const { error: subError } = await supabase
-        .from('subscriptions')
-        .update({ 
-          plan: 'basic',
-          status: 'active',
-          updated_at: new Date().toISOString()
-        })
-        .eq('user_id', user.id);
-        
-      if (subError) throw subError;
-      
-      // Atualizar o plano do usuário
-      const { error: userError } = await supabase
-        .from('users')
-        .update({ current_plan: 'basic' })
-        .eq('id', user.id);
-        
-      if (userError) throw userError;
-      
-      toast.success("Plano básico definido com sucesso. Recarregando...");
-      
-      // Recarregar a página após 2 segundos
-      setTimeout(() => {
-        window.location.reload();
-      }, 2000);
-      
+      await onRefresh();
+      toast.success("Dashboard atualizado com sucesso!");
     } catch (error) {
-      console.error("Erro ao redefinir plano:", error);
-      toast.error("Erro ao redefinir plano. Tente novamente.");
+      console.error("Erro ao atualizar dashboard:", error);
+      toast.error("Erro ao atualizar dashboard. Tente novamente.");
     } finally {
-      setResetting(false);
+      setRefreshing(false);
     }
   };
 
@@ -71,6 +46,9 @@ export default function DashboardHeader({ planName }: DashboardHeaderProps) {
     const result = await addTransaction(transactionData);
     if (!result.error) {
       toast.success('Transação adicionada com sucesso!');
+      if (onRefresh) {
+        await onRefresh(); // Atualizar dashboard após adicionar transação
+      }
     } else {
       toast.error('Erro ao adicionar transação. Tente novamente.');
     }
@@ -85,11 +63,11 @@ export default function DashboardHeader({ planName }: DashboardHeaderProps) {
         <Button 
           variant="ghost" 
           size="sm" 
-          onClick={handleForceBasicPlan}
-          disabled={resetting}
-          title="Redefinir para plano básico"
+          onClick={handleRefreshDashboard}
+          disabled={refreshing}
+          title="Atualizar dashboard"
         >
-          <RefreshCcw className="h-4 w-4" />
+          <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
         </Button>
       </div>
       <Button 

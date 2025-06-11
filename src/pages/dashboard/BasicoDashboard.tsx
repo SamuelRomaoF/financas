@@ -276,7 +276,7 @@ export default function BasicoDashboard() {
 
   return (
     <div className="space-y-6">
-      <DashboardHeader planName="Básico" />
+      <DashboardHeader planName="Básico" onRefresh={loadDashboardData} />
       <ResumoFinanceiro summaryData={summaryData} />
       <GraficosDashboard transactionData={transactionData} monthlyData={monthlyData} />
       <AlertasSection alerts={alerts} />

@@ -300,7 +300,7 @@ export default function PremiumDashboard() {
 
   return (
     <div className="space-y-6">
-      <DashboardHeader planName="Premium" />
+      <DashboardHeader planName="Premium" onRefresh={loadDashboardData} />
       <ResumoFinanceiro summaryData={summaryData} />
       <GraficosDashboard 
         transactionData={transactionData} 

@@ -19,6 +19,8 @@ interface Transaction {
 // Extender o tipo BankAccount para incluir recentTransactions
 interface ExtendedBankAccount extends BankAccount {
   recentTransactions: Transaction[];
+  pendingTransactionsCount: number;
+  scheduledTransactionsCount: number;
 }
 
 const BANK_LOGOS = {
@@ -75,6 +77,21 @@ export default function BankAccountManager({ refreshTrigger = 0 }: BankAccountMa
             .order('date', { ascending: false })
             .limit(5);
           
+          // Buscar transações pendentes (status = pending)
+          const { count: pendingCount, error: pendingError } = await supabase
+            .from('transactions')
+            .select('*', { count: 'exact', head: true })
+            .eq('bank_id', bank.id)
+            .eq('status', 'pending');
+          
+          // Buscar transações agendadas (date > hoje)
+          const today = new Date().toISOString().split('T')[0];
+          const { count: scheduledCount, error: scheduledError } = await supabase
+            .from('transactions')
+            .select('*', { count: 'exact', head: true })
+            .eq('bank_id', bank.id)
+            .gt('date', today);
+          
           if (transactionError) {
             console.error(`Erro ao buscar transações para o banco ${bank.id}:`, transactionError);
             return {
@@ -87,7 +104,9 @@ export default function BankAccountManager({ refreshTrigger = 0 }: BankAccountMa
               currency: 'BRL', // Padrão para Brasil
               color: bank.color || '#333333',
               agency: bank.agency || 'N/A',
-              recentTransactions: []
+              recentTransactions: [],
+              pendingTransactionsCount: 0,
+              scheduledTransactionsCount: 0
             };
           }
           
@@ -103,7 +122,9 @@ export default function BankAccountManager({ refreshTrigger = 0 }: BankAccountMa
             currency: 'BRL', // Padrão para Brasil
             color: bank.color || '#333333',
             agency: bank.agency || 'N/A',
-            recentTransactions: transactionData || []
+            recentTransactions: transactionData || [],
+            pendingTransactionsCount: pendingCount || 0,
+            scheduledTransactionsCount: scheduledCount || 0
           };
         })
       );
@@ -157,7 +178,9 @@ export default function BankAccountManager({ refreshTrigger = 0 }: BankAccountMa
           currency: 'BRL', // Padrão para Brasil
           color: bank.color || '#333333',
           agency: bank.agency || 'N/A',
-          recentTransactions: currentAccount?.recentTransactions || []
+          recentTransactions: currentAccount?.recentTransactions || [],
+          pendingTransactionsCount: currentAccount?.pendingTransactionsCount || 0,
+          scheduledTransactionsCount: currentAccount?.scheduledTransactionsCount || 0
         };
       });
       
