@@ -260,11 +260,24 @@ export default function PremiumDashboard() {
       const currentMonth = currentDate.getMonth();
       const currentYear = currentDate.getFullYear();
 
+      // Filtrar transações do mês atual
       const monthlyTransactions = transactions.filter(t => {
         const transactionDate = new Date(t.date);
         return transactionDate.getMonth() === currentMonth && transactionDate.getFullYear() === currentYear;
       });
 
+      // Buscar transações de empréstimos do mês atual
+      const { data: loanTransactions, error: loanError } = await supabase
+        .from('loan_payments')
+        .select('amount, payment_date')
+        .gte('payment_date', `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-01`)
+        .lt('payment_date', `${currentYear}-${String(currentMonth + 2).padStart(2, '0')}-01`);
+
+      if (loanError) {
+        console.error('Erro ao buscar pagamentos de empréstimos:', loanError);
+      }
+
+      // Calcular receitas e despesas das transações normais
       const income = monthlyTransactions
         .filter(t => t.type === 'income')
         .reduce((acc, t) => acc + t.amount, 0);
@@ -273,13 +286,18 @@ export default function PremiumDashboard() {
         .filter(t => t.type === 'expense')
         .reduce((acc, t) => acc + t.amount, 0);
 
-      const balance = income - expenses;
+      // Adicionar pagamentos de empréstimos às despesas
+      const loanExpenses = (loanTransactions || []).reduce((acc, payment) => acc + payment.amount, 0);
+      const totalExpenses = expenses + loanExpenses;
+
+      // Calcular saldo e economia sugerida
+      const balance = income - totalExpenses;
       const savings = income * 0.15; // 15% da renda como economia sugerida para premium
 
       setSummaryData({
         balance,
         income,
-        expenses,
+        expenses: totalExpenses,
         savings
       });
       

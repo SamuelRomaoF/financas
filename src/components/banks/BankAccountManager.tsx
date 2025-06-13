@@ -84,6 +84,10 @@ export default function BankAccountManager({ refreshTrigger = 0 }: BankAccountMa
             .eq('bank_id', bank.id)
             .eq('status', 'pending');
           
+          if (pendingError) {
+            console.error(`Erro ao buscar transações pendentes para o banco ${bank.id}:`, pendingError);
+          }
+          
           // Buscar transações agendadas (date > hoje)
           const today = new Date().toISOString().split('T')[0];
           const { count: scheduledCount, error: scheduledError } = await supabase
@@ -91,6 +95,16 @@ export default function BankAccountManager({ refreshTrigger = 0 }: BankAccountMa
             .select('*', { count: 'exact', head: true })
             .eq('bank_id', bank.id)
             .gt('date', today);
+          
+          if (scheduledError) {
+            console.error(`Erro ao buscar transações agendadas para o banco ${bank.id}:`, scheduledError);
+          }
+          
+          // Garantir que os valores não sejam nulos
+          const pendingTransactionsCount = pendingCount || 0;
+          const scheduledTransactionsCount = scheduledCount || 0;
+          
+          console.log(`Banco ${bank.name}: ${pendingTransactionsCount} pendentes, ${scheduledTransactionsCount} agendadas`);
           
           if (transactionError) {
             console.error(`Erro ao buscar transações para o banco ${bank.id}:`, transactionError);
@@ -105,8 +119,8 @@ export default function BankAccountManager({ refreshTrigger = 0 }: BankAccountMa
               color: bank.color || '#333333',
               agency: bank.agency || 'N/A',
               recentTransactions: [],
-              pendingTransactionsCount: 0,
-              scheduledTransactionsCount: 0
+              pendingTransactionsCount,
+              scheduledTransactionsCount
             };
           }
           
@@ -123,8 +137,8 @@ export default function BankAccountManager({ refreshTrigger = 0 }: BankAccountMa
             color: bank.color || '#333333',
             agency: bank.agency || 'N/A',
             recentTransactions: transactionData || [],
-            pendingTransactionsCount: pendingCount || 0,
-            scheduledTransactionsCount: scheduledCount || 0
+            pendingTransactionsCount,
+            scheduledTransactionsCount
           };
         })
       );

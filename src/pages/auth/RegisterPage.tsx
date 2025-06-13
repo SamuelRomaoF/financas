@@ -8,6 +8,7 @@ import Input from '../../components/ui/Input';
 import Label from '../../components/ui/Label';
 import PasswordInput from '../../components/ui/PasswordInput';
 import { useAuth } from '../../hooks/useAuth';
+import { sanitizeObject } from '../../utils/sanitizeInput';
 
 interface RegisterFormData {
   name: string;
@@ -27,7 +28,10 @@ export default function RegisterPage() {
   const { register, handleSubmit, watch, formState: { errors } } = useForm<RegisterFormData>();
   const password = watch('password');
   
-  const onSubmit = async (data: RegisterFormData) => {
+  const onSubmit = async (formData: RegisterFormData) => {
+    // Sanitizar entradas para prevenir XSS
+    const data = sanitizeObject(formData);
+    
     setIsLoading(true);
     setRegisterError(null);
     
@@ -121,12 +125,23 @@ export default function RegisterPage() {
                 {...register('password', { 
                   required: 'Senha é obrigatória',
                   minLength: {
-                    value: 6,
-                    message: 'A senha deve ter pelo menos 6 caracteres'
+                    value: 8,
+                    message: 'A senha deve ter pelo menos 8 caracteres'
+                  },
+                  validate: {
+                    hasUpperCase: (value) => 
+                      /[A-Z]/.test(value) || 'A senha deve conter pelo menos uma letra maiúscula',
+                    hasNumber: (value) => 
+                      /[0-9]/.test(value) || 'A senha deve conter pelo menos um número',
+                    hasSpecialChar: (value) => 
+                      /[^A-Za-z0-9]/.test(value) || 'A senha deve conter pelo menos um caractere especial'
                   }
                 })}
                 error={errors.password?.message}
               />
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                A senha deve ter pelo menos 8 caracteres, incluindo uma letra maiúscula, um número e um caractere especial.
+              </p>
             </div>
             
             <div>

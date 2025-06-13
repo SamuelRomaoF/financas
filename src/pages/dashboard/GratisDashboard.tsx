@@ -2,11 +2,13 @@ import { useCallback, useMemo } from 'react';
 import DashboardHeader from '../../components/dashboard/DashboardHeader';
 import GraficosDashboard from '../../components/dashboard/GraficosDashboard';
 import ResumoFinanceiro from '../../components/dashboard/ResumoFinanceiro';
+import { useBankAccounts } from '../../contexts/BankAccountContext';
 import { useTransactions } from '../../contexts/TransactionContext';
 import { CATEGORY_COLORS } from '../../utils/categoryColors';
 
 export default function GratisDashboard() {
   const { transactions, isLoading, refreshTransactions } = useTransactions();
+  const { accounts } = useBankAccounts();
 
   const summaryData = useMemo(() => {
     const currentDate = new Date();
@@ -26,10 +28,12 @@ export default function GratisDashboard() {
       .filter(t => t.type === 'expense')
       .reduce((acc, t) => acc + t.amount, 0);
 
-    const balance = income - expenses;
+    const bankBalance = accounts.reduce((total, account) => total + account.balance, 0);
+
+    const balance = accounts.length > 0 ? bankBalance : income - expenses;
 
     return { income, expenses, balance, savings: 0 }; // Savings não é usado no plano grátis
-  }, [transactions]);
+  }, [transactions, accounts]);
   
   const expenseByCategoryData = useMemo(() => {
     const expenseTransactions = transactions.filter(t => t.type === 'expense');

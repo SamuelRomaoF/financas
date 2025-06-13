@@ -116,7 +116,7 @@ export default function CreditCardManager() {
         .eq('user_id', user.id)
         .eq('type', 'expense')
         .order('date', { ascending: false })
-        .limit(50); // Buscar mais transações para ter certeza de encontrar as relacionadas aos cartões
+        .limit(100); // Aumentado para 100 para garantir que temos transações suficientes
       
       console.log("Transações carregadas:", allTransactions);
       
@@ -131,14 +131,8 @@ export default function CreditCardManager() {
           // Priorizar credit_card_id para cartões de crédito
           const cardTransactions = allTransactions
             .filter(t => {
-              const matchesCard = (t.credit_card_id && t.credit_card_id === card.id) || 
-                                 (t.bank_id && t.bank_id === card.id);
-              
-              if (matchesCard) {
-                console.log("Transação corresponde ao cartão:", t);
-              }
-              
-              return matchesCard;
+              // Verificar apenas pelo credit_card_id para garantir que estamos pegando apenas transações deste cartão
+              return t.credit_card_id === card.id;
             })
             .slice(0, 5) // Mostrar até 5 transações recentes por cartão
             .map(t => ({
@@ -160,10 +154,7 @@ export default function CreditCardManager() {
           
           // Para o limite utilizado, precisamos buscar todas as transações (não apenas as 5 recentes)
           // para calcular corretamente
-          const allCardTransactions = allTransactions.filter(t => 
-            (t.credit_card_id && t.credit_card_id === card.id) || 
-            (t.bank_id && t.bank_id === card.id)
-          );
+          const allCardTransactions = allTransactions.filter(t => t.credit_card_id === card.id);
           
           // Calcular o valor correto para o limite utilizado do cartão:
           // Soma dos valores das parcelas, não dos valores totais

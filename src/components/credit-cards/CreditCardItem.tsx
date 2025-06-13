@@ -36,11 +36,11 @@ export default function CreditCardItem({ card, onEdit, onRemove }: CreditCardIte
         // Buscar transações associadas a este cartão especificamente
         const { data, error } = await supabase
           .from('transactions')
-          .select('id, description, amount, date')
+          .select('id, description, amount, date, installments_total, installment_number, original_amount')
           .eq('credit_card_id', card.id)
           .eq('type', 'expense')
           .order('date', { ascending: false })
-          .limit(3);
+          .limit(5); // Aumentando para 5 transações recentes
           
         if (error) {
           console.error('Erro ao buscar transações do cartão:', error);
@@ -50,13 +50,28 @@ export default function CreditCardItem({ card, onEdit, onRemove }: CreditCardIte
         console.log(`Transações encontradas para o cartão ${card.name}:`, data);
         
         if (data && data.length > 0) {
-          setRecentTransactions(data);
+          // Transformar os dados para incluir informações de parcelamento
+          const formattedTransactions = data.map(t => ({
+            ...t,
+            isInstallment: Boolean(t.installments_total && t.installments_total > 1),
+            installmentInfo: t.installment_number && t.installments_total ? 
+              `${t.installment_number}/${t.installments_total}` : ''
+          }));
           
-          // Calcular o total gasto
-          const total = data.reduce((sum, t) => sum + t.amount, 0);
-          setCurrentSpending(total);
+          setRecentTransactions(formattedTransactions);
           
-          console.log(`Total gasto no cartão ${card.name}: ${total}`);
+          // Calcular o total gasto considerando todas as transações
+          const { data: allTransactions, error: allError } = await supabase
+            .from('transactions')
+            .select('amount')
+            .eq('credit_card_id', card.id)
+            .eq('type', 'expense');
+            
+          if (!allError && allTransactions) {
+            const total = allTransactions.reduce((sum, t) => sum + t.amount, 0);
+            setCurrentSpending(total);
+            console.log(`Total gasto no cartão ${card.name}: ${total}`);
+          }
         }
       } catch (error) {
         console.error('Erro ao buscar transações:', error);
@@ -220,14 +235,28 @@ export default function CreditCardItem({ card, onEdit, onRemove }: CreditCardIte
                   {recentTransactions.map(transaction => (
                     <div key={transaction.id} className="flex justify-between items-center">
                       <div>
-                        <p className="text-sm text-gray-900 dark:text-white">{transaction.description}</p>
+                        <p className="text-sm text-gray-900 dark:text-white">
+                          {transaction.description}
+                          {transaction.isInstallment && (
+                            <span className="ml-1 text-xs px-1.5 py-0.5 bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400 rounded-md">
+                              {transaction.installmentInfo}
+                            </span>
+                          )}
+                        </p>
                         <p className="text-xs text-gray-500 dark:text-gray-400">
                           {new Date(transaction.date).toLocaleDateString()}
                         </p>
                       </div>
-                      <p className="text-sm text-red-600 dark:text-red-400">
-                        {formatCurrency(transaction.amount)}
-                      </p>
+                      <div className="text-right">
+                        <p className="text-sm text-red-600 dark:text-red-400">
+                          {formatCurrency(transaction.amount)}
+                        </p>
+                        {transaction.isInstallment && transaction.original_amount && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Total: {formatCurrency(transaction.original_amount)}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>

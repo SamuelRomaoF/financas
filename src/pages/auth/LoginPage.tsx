@@ -2,7 +2,7 @@ import { AuthError } from '@supabase/supabase-js';
 import { LogIn, Wallet } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import Navbar from '../../components/layout/Navbar';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
@@ -10,6 +10,8 @@ import Label from '../../components/ui/Label';
 import PasswordInput from '../../components/ui/PasswordInput';
 import { useAuth } from '../../hooks/useAuth';
 import { useSubscription } from '../../hooks/useSubscription';
+import { checkRateLimit, clearRateLimit, formatRemainingTime, incrementRateLimit } from '../../utils/rateLimiter';
+import { sanitizeObject, sanitizeUrl } from '../../utils/sanitizeInput';
 
 interface LoginFormData {
   email: string;
@@ -21,9 +23,12 @@ export default function LoginPage() {
   const { /* user, */ signIn } = useAuth();
   const { checkAccess, createTrialSubscription } = useSubscription();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isEmailNotConfirmed, setIsEmailNotConfirmed] = useState(false);
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [blockTimeRemaining, setBlockTimeRemaining] = useState('');
   
   const { register, handleSubmit, formState: { errors }, watch } = useForm<LoginFormData>({
     defaultValues: {
@@ -44,33 +49,61 @@ export default function LoginPage() {
   }, [rememberMe, email]);
   
   const onSubmit = async (data: LoginFormData) => {
+    // Sanitizar entradas para prevenir XSS
+    const formData = sanitizeObject(data);
+    
+    // Verificar rate limit
+    const rateLimit = checkRateLimit(formData.email);
+    if (rateLimit.blocked) {
+      setIsBlocked(true);
+      setBlockTimeRemaining(formatRemainingTime(rateLimit.remainingMs));
+      setLoginError(`Muitas tentativas de login. Tente novamente em ${formatRemainingTime(rateLimit.remainingMs)}.`);
+      return;
+    }
+    
     setIsLoading(true);
     setLoginError(null);
     setIsEmailNotConfirmed(false);
     
     try {
-      const { data: signInData, error } = await signIn(data.email, data.password, data.rememberMe);
+      const { data: authData, error } = await signIn(formData.email, formData.password, formData.rememberMe);
       
-      if (error || !signInData) {
-        if (error instanceof AuthError && error.message.includes('Email not confirmed')) {
-          setIsEmailNotConfirmed(true);
-          throw new Error('Por favor, confirme seu email antes de fazer login. Verifique sua caixa de entrada.');
+      if (error) {
+        // Incrementar contador de tentativas
+        incrementRateLimit(formData.email);
+        
+        // Verificar se agora está bloqueado
+        const newRateLimit = checkRateLimit(formData.email);
+        if (newRateLimit.blocked) {
+          setIsBlocked(true);
+          setBlockTimeRemaining(formatRemainingTime(newRateLimit.remainingMs));
+          throw new Error(`Muitas tentativas de login. Tente novamente em ${formatRemainingTime(newRateLimit.remainingMs)}.`);
+        } else if (newRateLimit.attemptsLeft > 0) {
+          throw new Error(`Credenciais inválidas. Você tem mais ${newRateLimit.attemptsLeft} tentativa(s).`);
+        } else {
+          // Verificar se é erro de email não confirmado
+          if (error instanceof AuthError && error.message.includes('Email not confirmed')) {
+            setIsEmailNotConfirmed(true);
+            throw new Error('Por favor, confirme seu email antes de fazer login. Verifique sua caixa de entrada.');
+          }
+          throw error;
         }
-        throw error;
       }
-
+      
+      // Login bem-sucedido, limpar rate limit
+      clearRateLimit(formData.email);
+      
       const hasAccess = await checkAccess();
-
+      
       if (!hasAccess) {
+        console.log('Usuário não tem acesso, criando assinatura de teste...');
         let subscriptionError = null;
         for (let i = 0; i < 3; i++) {
-          const userToPass = signInData.user;
-          
-          if (!userToPass) {
-            subscriptionError = new Error('Dados críticos do usuário ausentes após login.');
-            break;
+          if (!authData || !authData.user) {
+            subscriptionError = new Error('Usuário não encontrado');
+            continue;
           }
-          const { error: trialError } = await createTrialSubscription(userToPass);
+          const { error: trialError } = await createTrialSubscription(authData.user);
           if (!trialError) {
             subscriptionError = null;
             break;
@@ -84,9 +117,15 @@ export default function LoginPage() {
         }
       }
 
-      navigate('/dashboard', { replace: true });
+      // Redirecionar para a página correta
+      const redirectTo = searchParams.get('redirectTo');
+      // Sanitizar URL de redirecionamento
+      navigate(sanitizeUrl(redirectTo || '/dashboard'));
+      
     } catch (error) {
-      if (error instanceof Error) {
+      if (error instanceof AuthError) {
+        setLoginError(error.message);
+      } else if (error instanceof Error) {
         setLoginError(error.message);
       } else {
         setLoginError('Erro ao fazer login. Tente novamente mais tarde.');
@@ -149,8 +188,8 @@ export default function LoginPage() {
                   {...register('password', { 
                     required: 'Senha é obrigatória',
                     minLength: {
-                      value: 6,
-                      message: 'A senha deve ter pelo menos 6 caracteres'
+                      value: 8,
+                      message: 'A senha deve ter pelo menos 8 caracteres'
                     }
                   })}
                   error={errors.password?.message}

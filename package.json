@@ -24,6 +24,7 @@
   "license": "ISC",
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.3",
+    "@supabase/mcp-server-supabase": "^0.4.3",
     "@supabase/supabase-js": "^2.49.8",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
