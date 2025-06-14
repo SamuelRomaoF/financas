@@ -69,8 +69,8 @@ export default function CreditCardItem({ card, onEdit, onRemove }: CreditCardIte
             
           if (!allError && allTransactions) {
             const total = allTransactions.reduce((sum, t) => sum + t.amount, 0);
-            setCurrentSpending(total);
-            console.log(`Total gasto no cartão ${card.name}: ${total}`);
+          setCurrentSpending(total);
+          console.log(`Total gasto no cartão ${card.name}: ${total}`);
           }
         }
       } catch (error) {
@@ -248,9 +248,9 @@ export default function CreditCardItem({ card, onEdit, onRemove }: CreditCardIte
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm text-red-600 dark:text-red-400">
-                          {formatCurrency(transaction.amount)}
-                        </p>
+                      <p className="text-sm text-red-600 dark:text-red-400">
+                        {formatCurrency(transaction.amount)}
+                      </p>
                         {transaction.isInstallment && transaction.original_amount && (
                           <p className="text-xs text-gray-500 dark:text-gray-400">
                             Total: {formatCurrency(transaction.original_amount)}
