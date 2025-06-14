@@ -266,16 +266,26 @@ export default function PremiumDashboard() {
         return transactionDate.getMonth() === currentMonth && transactionDate.getFullYear() === currentYear;
       });
 
-      // Buscar transações de empréstimos do mês atual
-      const { data: loanTransactions, error: loanError } = await supabase
-        .from('loan_payments')
-        .select('amount, payment_date')
-        .gte('payment_date', `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-01`)
-        .lt('payment_date', `${currentYear}-${String(currentMonth + 2).padStart(2, '0')}-01`);
+      // Buscar empréstimos ativos para calcular pagamentos mensais
+      const { data: activeLoans, error: loanError } = await supabase
+        .from('loans')
+        .select('*')
+        .eq('user_id', user.id)
+        .neq('status', 'quitado');
 
       if (loanError) {
-        console.error('Erro ao buscar pagamentos de empréstimos:', loanError);
+        console.error('Erro ao buscar empréstimos ativos:', loanError);
       }
+
+      // Calcular pagamentos de empréstimos do mês atual (usando o valor da parcela)
+      const loanExpenses = (activeLoans || []).reduce((acc, loan) => {
+        // Verificar se o próximo pagamento está no mês atual
+        const nextPayment = new Date(loan.next_payment_date);
+        if (nextPayment.getMonth() === currentMonth && nextPayment.getFullYear() === currentYear) {
+          return acc + loan.installment_value;
+        }
+        return acc;
+      }, 0);
 
       // Calcular receitas e despesas das transações normais
       const income = monthlyTransactions
@@ -287,7 +297,6 @@ export default function PremiumDashboard() {
         .reduce((acc, t) => acc + t.amount, 0);
 
       // Adicionar pagamentos de empréstimos às despesas
-      const loanExpenses = (loanTransactions || []).reduce((acc, payment) => acc + payment.amount, 0);
       const totalExpenses = expenses + loanExpenses;
 
       // Calcular saldo e economia sugerida
