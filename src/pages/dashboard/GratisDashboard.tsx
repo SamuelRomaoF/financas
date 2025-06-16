@@ -24,6 +24,9 @@ export default function GratisDashboard() {
       .filter(t => t.type === 'income')
       .reduce((acc, t) => acc + t.amount, 0);
 
+    // Calcular despesas - usando apenas o valor da parcela (amount)
+    // Para transações parceladas, o campo amount já contém o valor da parcela individual
+    // e não o valor total da compra (que estaria em original_amount)
     const expenses = monthlyTransactions
       .filter(t => t.type === 'expense')
       .reduce((acc, t) => acc + t.amount, 0);
@@ -38,6 +41,9 @@ export default function GratisDashboard() {
   const expenseByCategoryData = useMemo(() => {
     const expenseTransactions = transactions.filter(t => t.type === 'expense');
 
+    // Calcular despesas por categoria usando o valor das parcelas (amount)
+    // Para transações parceladas, isso garante que apenas o valor da parcela
+    // seja contabilizado, não o valor total da compra
     const expensesByCategory = expenseTransactions.reduce((acc, transaction) => {
       const category = transaction.category || 'Outros';
       if (!acc[category]) {

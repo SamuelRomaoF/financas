@@ -171,6 +171,9 @@ export default function BasicoDashboard() {
         console.log('Calculando dados de categoria manualmente devido a erro na RPC:', categoryError);
         const expenseTransactions = transactions.filter(t => t.type === 'expense');
         
+        // Calcular despesas por categoria usando o valor das parcelas (amount)
+        // Para transações parceladas, isso garante que apenas o valor da parcela
+        // seja contabilizado, não o valor total da compra
         const expensesByCategory = expenseTransactions.reduce((acc, transaction) => {
           // Na interface Transaction, category é uma string
           const categoryName = transaction.category || 'Outros';
@@ -268,6 +271,9 @@ export default function BasicoDashboard() {
         .filter(t => t.type === 'income')
         .reduce((acc, t) => acc + t.amount, 0);
 
+      // Calcular despesas - usando apenas o valor da parcela (amount)
+      // Para transações parceladas, o campo amount já contém o valor da parcela individual
+      // e não o valor total da compra (que estaria em original_amount)
       const expenses = monthlyTransactions
         .filter(t => t.type === 'expense')
         .reduce((acc, t) => acc + t.amount, 0);

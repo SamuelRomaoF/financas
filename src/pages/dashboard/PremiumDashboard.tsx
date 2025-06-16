@@ -171,6 +171,9 @@ export default function PremiumDashboard() {
         // Calcular dados de categoria manualmente como fallback
         const expenseTransactions = transactions.filter(t => t.type === 'expense');
         
+        // Calcular despesas por categoria usando o valor das parcelas (amount)
+        // Para transações parceladas, isso garante que apenas o valor da parcela
+        // seja contabilizado, não o valor total da compra
         const expensesByCategory = expenseTransactions.reduce((acc, transaction) => {
           // Na interface Transaction, category é uma string
           const categoryName = transaction.category || 'Outros';
@@ -227,6 +230,9 @@ export default function PremiumDashboard() {
           
           if (monthlyDataMap.has(monthKey)) {
             const monthData = monthlyDataMap.get(monthKey)!;
+            // Usar o valor da parcela (amount) para cada transação
+            // Para transações parceladas, isso garante que apenas o valor da parcela
+            // seja contabilizado, não o valor total da compra
             if (t.type === 'income') {
               monthData.receitas += t.amount;
             } else {
@@ -292,6 +298,9 @@ export default function PremiumDashboard() {
         .filter(t => t.type === 'income')
         .reduce((acc, t) => acc + t.amount, 0);
 
+      // Calcular despesas - usando apenas o valor da parcela (amount)
+      // Para transações parceladas, o campo amount já contém o valor da parcela individual
+      // e não o valor total da compra (que estaria em original_amount)
       const expenses = monthlyTransactions
         .filter(t => t.type === 'expense')
         .reduce((acc, t) => acc + t.amount, 0);
