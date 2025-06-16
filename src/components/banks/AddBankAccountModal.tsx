@@ -1,48 +1,43 @@
-import { useState, useEffect, ChangeEvent, FormEvent } from 'react';
-import { X, Landmark } from 'lucide-react';
+import { Landmark, X } from 'lucide-react';
+import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
+import { SaveableBankAccountData } from '../../types/finances';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 import Select from '../ui/Select';
-import toast from 'react-hot-toast';
-import { SaveableBankAccountData } from '../../types/finances'; // Importar de types/finances
-
-// Interface para os dados que o modal envia para WalletPage
-// Alinhada com BankAccount de WalletPage, mas sem o ID
-// E simplificando/ajustando campos como `logo` e `accountNumber` para o formulário
-// export interface SaveableBankAccountData { // Definição removida
-//   bankName: string; 
-//   accountType: 'corrente' | 'poupanca' | 'investimento';
-//   accountNumber?: string; 
-//   balance: number;
-//   logo: string; // Será um caminho para o logo ou um placeholder
-//   color: string;
-//   agency?: string; // Novo campo para Agência
-// }
 
 interface AddBankAccountModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSaveAccount: (accountData: SaveableBankAccountData) => void; // Agora usa o tipo importado
+  onSaveAccount: (accountData: SaveableBankAccountData) => void;
 }
 
+// Banco de dados predefinidos com cores e logos
 const predefinedBanks = [
   { name: 'Nubank', logo: '/bank-logos/nubank.svg', color: '#820AD1' },
   { name: 'Inter', logo: '/bank-logos/inter.svg', color: '#FF7A00' },
-  { name: 'Itaú', logo: '/bank-logos/itau.svg', color: '#EC7000' }, // Supondo que itau.svg exista
-  { name: 'Bradesco', logo: '/bank-logos/bradesco.svg', color: '#CC092F' }, // Supondo que bradesco.svg exista
-  { name: 'Santander', logo: '/bank-logos/santander.svg', color: '#EC0000' }, // Supondo que santander.svg exista
-  { name: 'Banco do Brasil', logo: '/bank-logos/bb.svg', color: '#0033A0' }, // Supondo que bb.svg exista
-  { name: 'Outro', logo: '/bank-logos/default.svg', color: '#6B7280' } // Um logo genérico
+  { name: 'Itaú', logo: '/bank-logos/itau.svg', color: '#EC7000' },
+  { name: 'Bradesco', logo: '/bank-logos/bradesco.svg', color: '#CC092F' },
+  { name: 'Santander', logo: '/bank-logos/santander.svg', color: '#EC0000' },
+  { name: 'Banco do Brasil', logo: '/bank-logos/bb.svg', color: '#0033A0' },
+  { name: 'Outro', logo: '/bank-logos/default.svg', color: '#6B7280' }
 ];
 
 const defaultBankColor = '#6B7280'; // Cinza padrão
+
+// Mapeamento de tipos de conta para o formato esperado pelo backend
+const accountTypeMapping = {
+  'corrente': 'checking',
+  'poupanca': 'savings',
+  'investimento': 'investment'
+};
 
 export default function AddBankAccountModal({ isOpen, onClose, onSaveAccount }: AddBankAccountModalProps) {
   const [selectedPredefinedBankName, setSelectedPredefinedBankName] = useState(predefinedBanks[0].name);
   const [customBankName, setCustomBankName] = useState('');
   const [accountType, setAccountType] = useState<'corrente' | 'poupanca' | 'investimento'>('corrente');
   const [accountNumber, setAccountNumber] = useState('');
-  const [agency, setAgency] = useState(''); // Novo estado para Agência
+  const [agency, setAgency] = useState('');
   const [balance, setBalance] = useState<number | '' >('');
   const [color, setColor] = useState(predefinedBanks[0].color || defaultBankColor);
 
@@ -54,12 +49,9 @@ export default function AddBankAccountModal({ isOpen, onClose, onSaveAccount }: 
       setCustomBankName('');
       setAccountType('corrente');
       setAccountNumber('');
-      setAgency(''); // Resetar agência
+      setAgency('');
       setBalance('');
       setColor(initialBank.color);
-    } else {
-      // Pode-se adicionar lógica de reset aqui também se necessário ao fechar, 
-      // mas o reset ao abrir geralmente cobre a necessidade de um formulário limpo.
     }
   }, [isOpen]);
 
@@ -80,20 +72,23 @@ export default function AddBankAccountModal({ isOpen, onClose, onSaveAccount }: 
     }
 
     const finalBankName = selectedPredefinedBankName === 'Outro' ? customBankName.trim() : selectedPredefinedBankName;
-    const bankDetails = predefinedBanks.find(b => b.name === selectedPredefinedBankName);
+    
+    // Mapear o tipo de conta para o formato esperado pelo backend
+    const mappedAccountType = accountTypeMapping[accountType] as 'checking' | 'savings' | 'investment';
     
     const accountData: SaveableBankAccountData = {
       bankName: finalBankName,
-      accountType,
+      accountType: mappedAccountType,
       accountNumber: accountNumber || undefined,
-      agency: agency.trim() || undefined, // Adicionar agência
+      agency: agency.trim() || undefined,
       balance: Number(balance),
-      color: color, // A cor já está sendo gerenciada pelo estado `color`
-      logo: bankDetails?.logo || '/bank-logos/default.svg' // Usa o logo do banco ou default
+      color: color,
+      currency: 'BRL', // Definindo a moeda padrão como BRL
+      userId: '' // Este campo será preenchido pelo backend/contexto
     };
 
     onSaveAccount(accountData);
-    onClose(); // Fechar o modal após salvar
+    onClose();
   };
 
   if (!isOpen) return null;
@@ -162,7 +157,7 @@ export default function AddBankAccountModal({ isOpen, onClose, onSaveAccount }: 
               value={agency} 
               onChange={(e: ChangeEvent<HTMLInputElement>) => setAgency(e.target.value)} 
               placeholder="Ex: 0001"
-              maxLength={10} // Adicionando um maxLength para agência
+              maxLength={10}
             />
           </div>
 

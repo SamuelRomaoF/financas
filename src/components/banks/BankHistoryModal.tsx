@@ -1,14 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/Dialog';
+import { format, parseISO } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { ArrowDownCircle, ArrowUpCircle, Calendar, Clock, Loader2, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../hooks/useAuth';
+import { supabase } from '../../lib/supabase';
 import { BankAccount } from '../../types/finances';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { getBankInitials } from '../../utils/strings';
-import { CreditCard, Clock, Calendar, ArrowDownCircle, ArrowUpCircle, X, Loader2 } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { supabase } from '../../lib/supabase';
-import { useAuth } from '../../hooks/useAuth';
-import toast from 'react-hot-toast';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/Dialog';
 
 // Definindo o tipo da transação
 interface Transaction {
@@ -40,6 +41,7 @@ export default function BankHistoryModal({ isOpen, onClose, bank }: BankHistoryM
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (isOpen && bank && activeTab === 'history') {
@@ -123,6 +125,17 @@ export default function BankHistoryModal({ isOpen, onClose, bank }: BankHistoryM
       toast.error('Ocorreu um erro ao buscar as transações');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleViewAllTransactions = () => {
+    // Fechar o modal
+    onClose();
+    
+    // Verificar se bank existe antes de acessar suas propriedades
+    if (bank) {
+      // Navegar para a página de transações com filtro para esta conta
+      navigate(`/transactions?bankId=${bank.id}&bankName=${encodeURIComponent(bank.bankName)}`);
     }
   };
 
@@ -350,7 +363,10 @@ export default function BankHistoryModal({ isOpen, onClose, bank }: BankHistoryM
             {/* Botão para ver mais */}
             {transactions.length > 0 && (
               <div className="flex justify-center mt-4">
-                <button className="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg transition-colors">
+                <button 
+                  className="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg transition-colors"
+                  onClick={handleViewAllTransactions}
+                >
                   Ver Todas as Transações
                 </button>
               </div>

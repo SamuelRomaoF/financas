@@ -31,6 +31,7 @@ export interface Transaction {
 interface TransactionFilters {
   searchTerm: string;
   type: 'all' | 'income' | 'expense';
+  bankId?: string | null;
 }
 
 interface TransactionContextData {
@@ -82,6 +83,9 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
     }
     if (filters.type !== 'all') {
       query = query.eq('type', filters.type);
+    }
+    if (filters.bankId) {
+      query = query.eq('bank_id', filters.bankId);
     }
 
     return await query;

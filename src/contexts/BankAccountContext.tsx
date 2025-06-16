@@ -1,215 +1,322 @@
-import { createContext, ReactNode, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { BankAccount, SaveableBankAccountData } from '../types/finances';
-import { AuthContext } from './AuthContext';
+import { useAuth } from '../hooks/useAuth';
+import { supabase } from '../lib/supabase';
+import { BankAccount } from '../types/finances';
 
-// Reutilizando/redefinindo interfaces necessárias. Idealmente, mover para um arquivo de tipos global.
-// export interface BankAccount {
-//   id: string;
-//   bankName: string;
-//   accountType: 'corrente' | 'poupanca' | 'investimento';
-//   accountNumber: string;
-//   balance: number;
-//   logo: string;
-//   color: string;
-//   agency?: string;
-//   pendingTransactionsCount?: number;
-//   scheduledTransactionsCount?: number;
-// }
-
-// export interface SaveableBankAccountData {
-//   bankName: string; 
-//   accountType: 'corrente' | 'poupanca' | 'investimento';
-//   accountNumber?: string; 
-//   balance: number;
-//   logo: string; 
-//   color: string;
-//   agency?: string;
-// }
-
-interface BankAccountContextType {
+interface BankAccountContextData {
   accounts: BankAccount[];
-  highlightedAccountIds: string[];
-  isLoadingAccounts: boolean;
-  addAccount: (accountData: SaveableBankAccountData) => Promise<void>;
-  removeAccount: (accountId: string) => Promise<void>;
-  setHighlightedAccountIds: (ids: string[]) => void;
-  getAccountById: (accountId: string) => BankAccount | undefined;
+  loading: boolean;
+  fetchAccounts: () => Promise<void>;
+  createAccount: (account: Omit<BankAccount, 'id' | 'userId'>) => Promise<void>;
+  updateAccount: (id: string, account: Partial<BankAccount>) => Promise<void>;
+  deleteAccount: (id: string) => Promise<void>;
+  getAccount: (id: string) => BankAccount | undefined;
   refreshAccounts: () => Promise<void>;
 }
 
-const BankAccountContext = createContext<BankAccountContextType | undefined>(undefined);
+const BankAccountContext = createContext<BankAccountContextData>({} as BankAccountContextData);
 
-export const BankAccountProvider = ({ children }: { children: ReactNode }) => {
-  const authContext = useContext(AuthContext);
+// Chave para armazenar o cache no localStorage
+const ACCOUNTS_CACHE_KEY = 'bank_accounts_cache';
+const CACHE_EXPIRY_TIME = 5 * 60 * 1000; // 5 minutos em milissegundos
 
+export function BankAccountProvider({ children }: { children: React.ReactNode }) {
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
-  const [highlightedAccountIds, setHighlightedAccountIdsState] = useState<string[]>([]);
-  const [isLoadingAccounts, setIsLoadingAccounts] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  const [lastFetchTime, setLastFetchTime] = useState(0); // Controle de tempo de recarga
+  const [forceRefresh, setForceRefresh] = useState(false); // Flag para forçar atualização
 
+  // Buscar contas quando o usuário mudar
   useEffect(() => {
-    if (authContext && authContext.user) {
+    if (user) {
       fetchAccounts();
-    } else if (authContext && !authContext.loading && !authContext.user) {
-      setIsLoadingAccounts(false);
     }
-  }, [authContext]);
+  }, [user]);
+
+  // Ouvir eventos de atualização de transações para atualizar saldos
+  useEffect(() => {
+    const handleTransactionUpdate = () => {
+      console.log("Evento transaction-updated detectado, atualizando contas bancárias");
+      // Forçar atualização quando uma transação for adicionada/atualizada
+      setForceRefresh(true);
+      fetchAccounts();
+    };
+
+    document.addEventListener('transaction-updated', handleTransactionUpdate);
+    
+    return () => {
+      document.removeEventListener('transaction-updated', handleTransactionUpdate);
+    };
+  }, []);
+
+  // Função para salvar os dados das contas no cache local
+  const saveAccountsToCache = (accountsData: BankAccount[]) => {
+    if (!user) return;
+    
+    try {
+      const cacheData = {
+        accounts: accountsData,
+        timestamp: Date.now(),
+        userId: user.id
+      };
+      localStorage.setItem(ACCOUNTS_CACHE_KEY, JSON.stringify(cacheData));
+    } catch (error) {
+      console.error('Erro ao salvar cache de contas bancárias:', error);
+    }
+  };
+
+  // Função para carregar os dados das contas do cache local
+  const loadAccountsFromCache = (): { accounts: BankAccount[], isValid: boolean } => {
+    if (!user) return { accounts: [], isValid: false };
+    
+    try {
+      const cachedData = localStorage.getItem(ACCOUNTS_CACHE_KEY);
+      if (!cachedData) return { accounts: [], isValid: false };
+      
+      const parsedData = JSON.parse(cachedData);
+      
+      // Verificar se o cache é do usuário atual e se ainda é válido
+      const isValid = 
+        parsedData.userId === user.id && 
+        (Date.now() - parsedData.timestamp) < CACHE_EXPIRY_TIME;
+      
+      return { 
+        accounts: isValid ? parsedData.accounts : [],
+        isValid
+      };
+    } catch (error) {
+      console.error('Erro ao carregar cache de contas bancárias:', error);
+      return { accounts: [], isValid: false };
+    }
+  };
 
   const fetchAccounts = async () => {
-    if (!authContext || !authContext.user) return;
-
+    if (!user) return;
+    
+    // Verificar se podemos usar o cache
+    const now = Date.now();
+    const { accounts: cachedAccounts, isValid } = loadAccountsFromCache();
+    
+    // Se o cache for válido e não estamos forçando atualização, use-o
+    if (isValid && !forceRefresh && now - lastFetchTime < 2000) {
+      console.log("Usando cache de contas bancárias");
+      setAccounts(cachedAccounts);
+      setLoading(false);
+      return;
+    }
+    
+    // Evitar múltiplas recargas em um curto período de tempo (mínimo 2 segundos entre recargas)
+    if (now - lastFetchTime < 2000 && !forceRefresh) {
+      console.log("Ignorando recarga rápida de contas bancárias");
+      return;
+    }
+    
     try {
-      setIsLoadingAccounts(true);
-      const { data: accountsData, error } = await authContext.supabase
+      setLoading(true);
+      console.log("Buscando contas bancárias para o usuário:", user.id);
+      
+      const { data, error } = await supabase
         .from('banks')
         .select('*')
-        .eq('user_id', authContext.user.id);
-
-      if (error) {
-        throw error;
-      }
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+        
+      if (error) throw error;
       
-      if (accountsData) {
-        const mappedAccounts: BankAccount[] = accountsData.map(account => ({
-          id: account.id,
-          bankName: account.name,
-          accountType: account.type as 'corrente' | 'poupanca' | 'investimento',
-          accountNumber: account.account || '',
-          balance: account.balance || 0,
-          color: account.color || '#000000',
-          agency: account.agency || '',
-          logo: `/bank-logos/${account.name.toLowerCase().replace(/\s/g, '-')}.svg`,
-          pendingTransactionsCount: 0,
-          scheduledTransactionsCount: 0,
-        }));
-        setAccounts(mappedAccounts);
-      }
-
+      console.log("Contas bancárias encontradas:", data?.length || 0);
+      
+      // Processar dados para o formato correto
+      const processedAccounts: BankAccount[] = data?.map(account => ({
+        id: account.id,
+        userId: account.user_id,
+        bankName: account.name,
+        accountType: mapAccountType(account.type),
+        accountNumber: account.account,
+        agency: account.agency,
+        balance: account.balance || 0,
+        currency: 'BRL', // Definindo moeda padrão como BRL
+        color: account.color || '#6366F1',
+        pendingTransactionsCount: account.pending_count || 0,
+        scheduledTransactionsCount: account.scheduled_count || 0
+      })) || [];
+      
+      // Salvar no cache
+      saveAccountsToCache(processedAccounts);
+      
+      setAccounts(processedAccounts);
+      setLastFetchTime(now);
+      setForceRefresh(false); // Resetar a flag de atualização forçada
     } catch (error) {
       console.error('Erro ao buscar contas bancárias:', error);
-      toast.error('Não foi possível carregar suas contas bancárias.');
+      toast.error('Erro ao carregar contas bancárias');
     } finally {
-      setIsLoadingAccounts(false);
+      setLoading(false);
     }
   };
 
-  const addAccount = async (accountData: SaveableBankAccountData) => {
-    if (!authContext || !authContext.user) {
-      toast.error('Você precisa estar logado para adicionar uma conta.');
-      return;
+  // Função auxiliar para mapear tipos de conta do banco de dados para os tipos do frontend
+  const mapAccountType = (type: string): 'checking' | 'savings' | 'investment' => {
+    switch (type) {
+      case 'corrente':
+        return 'checking';
+      case 'poupanca':
+        return 'savings';
+      case 'investimento':
+        return 'investment';
+      default:
+        return 'checking'; // Tipo padrão
     }
+  };
 
+  // Função auxiliar para mapear tipos de conta do frontend para o banco de dados
+  const mapAccountTypeToDb = (type: 'checking' | 'savings' | 'investment'): string => {
+    switch (type) {
+      case 'checking':
+        return 'corrente';
+      case 'savings':
+        return 'poupanca';
+      case 'investment':
+        return 'investimento';
+      default:
+        return 'corrente'; // Tipo padrão
+    }
+  };
+
+  const createAccount = async (account: Omit<BankAccount, 'id' | 'userId'>) => {
+    if (!user) return;
+    
     try {
-      // Mapeia os dados do formulário para o formato da tabela 'banks'
-      const newAccountForSupabase = {
-        user_id: authContext.user.id,
-        name: accountData.bankName,
-        type: accountData.accountType,
-        account: accountData.accountNumber,
-        balance: accountData.balance,
-        color: accountData.color,
-        agency: accountData.agency,
-      };
-
-      const { data, error } = await authContext.supabase
+      console.log("Criando nova conta bancária:", account);
+      
+      const { data, error } = await supabase
         .from('banks')
-        .insert(newAccountForSupabase)
-        .select() // .select() retorna o registro inserido
-        .single(); // Esperamos inserir e retornar um único registro
-
-      if (error) {
-        // O erro de limite de contas (do trigger do DB) será capturado aqui
-        console.error('Erro ao adicionar conta:', error.message);
-        toast.error(error.message || 'Falha ao adicionar a conta.');
-        return;
-      }
-
-      if (data) {
-        // Mapeia o retorno do Supabase para o formato do frontend e atualiza o estado
-        const addedAccount: BankAccount = {
-            id: data.id,
-            bankName: data.name,
-            accountType: data.type as 'corrente' | 'poupanca' | 'investimento',
-            accountNumber: data.account || '',
-            balance: data.balance || 0,
-            color: data.color || '#000000',
-            agency: data.agency || '',
-            logo: `/bank-logos/${data.name.toLowerCase().replace(/\s/g, '-')}.svg`,
-            pendingTransactionsCount: 0, 
-            scheduledTransactionsCount: 0,
+        .insert({
+          user_id: user.id,
+          name: account.bankName,
+          type: mapAccountTypeToDb(account.accountType),
+          account: account.accountNumber,
+          agency: account.agency,
+          balance: account.balance || 0,
+          color: account.color
+        })
+        .select();
+        
+      if (error) throw error;
+      
+      console.log("Conta bancária criada com sucesso:", data);
+      
+      // Adicionar a nova conta à lista
+      if (data && data[0]) {
+        const newAccount: BankAccount = {
+          id: data[0].id,
+          userId: data[0].user_id,
+          bankName: data[0].name,
+          accountType: mapAccountType(data[0].type),
+          accountNumber: data[0].account,
+          agency: data[0].agency,
+          balance: data[0].balance || 0,
+          currency: 'BRL',
+          color: data[0].color || '#6366F1',
+          pendingTransactionsCount: 0,
+          scheduledTransactionsCount: 0
         };
-        setAccounts(prevAccounts => [...prevAccounts, addedAccount]);
-        toast.success('Conta adicionada com sucesso!');
+        
+        // Atualizar o estado e o cache
+        const updatedAccounts = [newAccount, ...accounts];
+        setAccounts(updatedAccounts);
+        saveAccountsToCache(updatedAccounts);
       }
-
+      
+      toast.success('Conta bancária adicionada com sucesso!');
     } catch (error) {
-      console.error('Erro inesperado ao adicionar conta:', error);
-      toast.error('Ocorreu um erro inesperado.');
+      console.error('Erro ao criar conta bancária:', error);
+      toast.error('Erro ao adicionar conta bancária');
     }
   };
 
-  const removeAccount = async (accountId: string) => {
-    if (!authContext || !authContext.user) {
-      toast.error('Você precisa estar logado para remover uma conta.');
-      return;
-    }
-
+  const updateAccount = async (id: string, account: Partial<BankAccount>) => {
     try {
-        const { error } = await authContext.supabase
-            .from('banks')
-            .delete()
-            .eq('id', accountId)
-            .eq('user_id', authContext.user.id); // Dupla verificação por segurança
-
-        if (error) {
-            throw error;
-        }
-
-        setAccounts(prevAccounts => prevAccounts.filter(account => account.id !== accountId));
-        setHighlightedAccountIdsState(prevHighlighted => prevHighlighted.filter(id => id !== accountId));
-        toast.success('Conta removida com sucesso!');
-
+      console.log("Atualizando conta bancária:", id, account);
+      
+      // Converter para o formato do banco de dados
+      const dbAccount: any = {};
+      
+      if (account.bankName !== undefined) dbAccount.name = account.bankName;
+      if (account.accountType !== undefined) dbAccount.type = mapAccountTypeToDb(account.accountType);
+      if (account.accountNumber !== undefined) dbAccount.account = account.accountNumber;
+      if (account.agency !== undefined) dbAccount.agency = account.agency;
+      if (account.balance !== undefined) dbAccount.balance = account.balance;
+      if (account.color !== undefined) dbAccount.color = account.color;
+      
+      const { error } = await supabase
+        .from('banks')
+        .update(dbAccount)
+        .eq('id', id);
+        
+      if (error) throw error;
+      
+      // Atualizar a conta na lista e no cache
+      const updatedAccounts = accounts.map(acc => 
+        acc.id === id ? { ...acc, ...account } : acc
+      );
+      setAccounts(updatedAccounts);
+      saveAccountsToCache(updatedAccounts);
+      
+      toast.success('Conta bancária atualizada com sucesso!');
     } catch (error) {
-        console.error('Erro ao remover conta:', error);
-        toast.error('Não foi possível remover a conta.');
+      console.error('Erro ao atualizar conta bancária:', error);
+      toast.error('Erro ao atualizar conta bancária');
     }
   };
 
-  const getAccountById = (accountId: string): BankAccount | undefined => {
-    return accounts.find(account => account.id === accountId);
-  };
-  
-  const setHighlightedAccountIds = (ids: string[]) => {
-    setHighlightedAccountIdsState(ids);
+  const deleteAccount = async (id: string) => {
+    try {
+      console.log("Excluindo conta bancária:", id);
+      
+      const { error } = await supabase
+        .from('banks')
+        .delete()
+        .eq('id', id);
+        
+      if (error) throw error;
+      
+      // Remover a conta da lista e atualizar o cache
+      const updatedAccounts = accounts.filter(acc => acc.id !== id);
+      setAccounts(updatedAccounts);
+      saveAccountsToCache(updatedAccounts);
+      
+      toast.success('Conta bancária excluída com sucesso!');
+    } catch (error) {
+      console.error('Erro ao excluir conta bancária:', error);
+      toast.error('Erro ao excluir conta bancária');
+    }
   };
 
-  // Expor a função fetchAccounts como refreshAccounts
-  const refreshAccounts = async () => {
-    return fetchAccounts();
+  const getAccount = (id: string) => {
+    return accounts.find(account => account.id === id);
   };
 
   return (
-    <BankAccountContext.Provider 
-      value={{
-        accounts,
-        highlightedAccountIds,
-        isLoadingAccounts,
-        addAccount,
-        removeAccount,
-        getAccountById,
-        setHighlightedAccountIds,
-        refreshAccounts
-      }}
-    >
+    <BankAccountContext.Provider value={{
+      accounts,
+      loading,
+      fetchAccounts,
+      createAccount,
+      updateAccount,
+      deleteAccount,
+      getAccount,
+      refreshAccounts: () => {
+        setForceRefresh(true); 
+        return fetchAccounts();
+      }
+    }}>
       {children}
     </BankAccountContext.Provider>
   );
-};
+}
 
-export const useBankAccounts = () => {
-  const context = useContext(BankAccountContext);
-  if (context === undefined) {
-    throw new Error('useBankAccounts must be used within a BankAccountProvider');
-  }
-  return context;
-}; 
+export function useBankAccounts() {
+  return useContext(BankAccountContext);
+} 

@@ -24,6 +24,7 @@ interface NewTransactionModalProps {
   onSubmit: (data: Omit<Transaction, 'id' | 'user_id' | 'category'>) => void;
   categories: Category[]; 
   transactionToEdit?: Transaction | null;
+  preselectedBankId?: string | null;
 }
 
 export default function NewTransactionModal({
@@ -32,6 +33,7 @@ export default function NewTransactionModal({
   onSubmit,
   categories,
   transactionToEdit,
+  preselectedBankId,
 }: NewTransactionModalProps) {
   const [type, setType] = useState<'income' | 'expense'>('expense');
   const [description, setDescription] = useState('');
@@ -39,9 +41,9 @@ export default function NewTransactionModal({
   const [categoryId, setCategoryId] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedCardId, setSelectedCardId] = useState<string>('');
-  const [selectedBankId, setSelectedBankId] = useState<string>('');
+  const [selectedBankId, setSelectedBankId] = useState<string>(preselectedBankId || '');
   const [creditCards, setCreditCards] = useState<CreditCard[]>([]);
-  const [paymentMethod, setPaymentMethod] = useState<'card' | 'pix'>('card');
+  const [paymentMethod, setPaymentMethod] = useState<'card' | 'pix'>(preselectedBankId ? 'pix' : 'card');
   const [isInstallment, setIsInstallment] = useState<boolean>(false);
   const [installmentsTotal, setInstallmentsTotal] = useState<number>(1);
   const { accounts } = useBankAccounts();
@@ -58,8 +60,16 @@ export default function NewTransactionModal({
     type: 'expense' as 'income' | 'expense',
     date: new Date().toISOString().split('T')[0],
     category_id: '',
-    bankId: '', // Adicionando o bankId ao estado do formulário
+    bankId: preselectedBankId || '',
   });
+
+  // Efeito para aplicar o bankId pré-selecionado
+  useEffect(() => {
+    if (preselectedBankId && !isEditMode) {
+      setSelectedBankId(preselectedBankId);
+      setPaymentMethod('pix');
+    }
+  }, [preselectedBankId, isEditMode]);
 
   // Carregar cartões de crédito
   useEffect(() => {
@@ -108,8 +118,9 @@ export default function NewTransactionModal({
         setPaymentMethod('pix');
       } else {
         setSelectedCardId('');
-        setSelectedBankId('');
-        setPaymentMethod('pix');
+        // Se não houver banco na transação, mas tiver um pré-selecionado, use-o
+        setSelectedBankId(preselectedBankId || '');
+        setPaymentMethod(preselectedBankId ? 'pix' : 'card');
       }
       
       // Configurar parcelamento se for uma transação parcelada
@@ -120,8 +131,12 @@ export default function NewTransactionModal({
         setIsInstallment(false);
         setInstallmentsTotal(1);
       }
+    } else if (!isEditMode && preselectedBankId) {
+      // Se não estiver editando mas tiver um banco pré-selecionado
+      setSelectedBankId(preselectedBankId);
+      setPaymentMethod('pix');
     }
-  }, [isEditMode, transactionToEdit]);
+  }, [isEditMode, transactionToEdit, preselectedBankId]);
 
   if (!isOpen) return null;
 

@@ -1,15 +1,17 @@
-import { Search, Loader2, Edit, Trash2 } from 'lucide-react';
-import { useState, useMemo, useEffect } from 'react';
+import { Edit, Loader2, Search, Trash2, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import NewTransactionModal from '../../components/transactions/NewTransactionModal';
 import Button from '../../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
-import { formatCurrency } from '../../utils/formatCurrency';
-import { useSubscription } from '../../hooks/useSubscription';
-import { useTransactions, Transaction } from '../../contexts/TransactionContext';
+import { useBankAccounts } from '../../contexts/BankAccountContext';
 import { useCategories } from '../../contexts/CategoryContext';
+import { Transaction, useTransactions } from '../../contexts/TransactionContext';
 import { useDebounce } from '../../hooks/useDebounce';
+import { useSubscription } from '../../hooks/useSubscription';
+import { formatCurrency } from '../../utils/formatCurrency';
 
 const GRATIS_TRANSACTION_LIMIT = 50;
 const BASICO_TRANSACTION_LIMIT = 100;
@@ -17,11 +19,17 @@ const BASICO_TRANSACTION_LIMIT = 100;
 type TransactionType = 'all' | 'income' | 'expense';
 
 export default function TransactionsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const bankIdParam = searchParams.get('bankId');
+  const bankNameParam = searchParams.get('bankName');
+  
   const [isNewTransactionModalOpen, setIsNewTransactionModalOpen] = useState(false);
   const [transactionToEdit, setTransactionToEdit] = useState<Transaction | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedType, setSelectedType] = useState<TransactionType>('all');
+  const [selectedBankId, setSelectedBankId] = useState<string | null>(bankIdParam);
   const { subscription } = useSubscription();
+  const { accounts } = useBankAccounts();
   const { 
     transactions, 
     isLoading, 
@@ -36,9 +44,21 @@ export default function TransactionsPage() {
   
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
+  // Efeito para carregar transações com filtros
   useEffect(() => {
-    loadTransactions({ searchTerm: debouncedSearchTerm, type: selectedType });
-  }, [debouncedSearchTerm, selectedType, loadTransactions]);
+    loadTransactions({ 
+      searchTerm: debouncedSearchTerm, 
+      type: selectedType,
+      bankId: selectedBankId
+    });
+  }, [debouncedSearchTerm, selectedType, selectedBankId, loadTransactions]);
+
+  // Efeito para inicializar o filtro de banco da URL
+  useEffect(() => {
+    if (bankIdParam) {
+      setSelectedBankId(bankIdParam);
+    }
+  }, [bankIdParam]);
 
   const handleOpenModal = (transaction: Transaction | null = null) => {
     setTransactionToEdit(transaction);
@@ -55,6 +75,14 @@ export default function TransactionsPage() {
     setTransactionToEdit(null);
   };
 
+  const handleClearBankFilter = () => {
+    setSelectedBankId(null);
+    // Remover os parâmetros bankId e bankName da URL
+    searchParams.delete('bankId');
+    searchParams.delete('bankName');
+    setSearchParams(searchParams);
+  };
+
   const userPlan = subscription?.plan;
   const isGratisPlan = userPlan === 'free';
   const transactionsCount = transactions.length;
@@ -66,6 +94,20 @@ export default function TransactionsPage() {
   const getPaymentMethodDetails = (transaction: Transaction) => {
     return transaction.type === 'income' ? 'Entrada' : 'Saída';
   };
+
+  // Encontrar o nome do banco selecionado
+  const selectedBankName = useMemo(() => {
+    if (!selectedBankId) return null;
+    
+    // Primeiro, verificar se temos o nome do banco na URL
+    if (bankNameParam && bankIdParam === selectedBankId) {
+      return decodeURIComponent(bankNameParam);
+    }
+    
+    // Caso contrário, procurar nas contas carregadas
+    const bank = accounts.find(account => account.id === selectedBankId);
+    return bank?.bankName || 'Banco';
+  }, [selectedBankId, bankNameParam, bankIdParam, accounts]);
 
   return (
     <div className="space-y-8">
@@ -120,6 +162,22 @@ export default function TransactionsPage() {
               <option value="expense">Saídas</option>
             </Select>
           </div>
+
+          {/* Filtro de Banco */}
+          {selectedBankId && selectedBankName && (
+            <div className="mt-4 flex items-center">
+              <span className="text-sm text-gray-500 dark:text-gray-400 mr-2">Filtrado por conta:</span>
+              <div className="bg-primary-100 dark:bg-primary-900 text-primary-800 dark:text-primary-200 px-3 py-1 rounded-full text-sm flex items-center">
+                {selectedBankName}
+                <button 
+                  onClick={handleClearBankFilter}
+                  className="ml-2 text-primary-500 hover:text-primary-700 dark:hover:text-primary-300"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -197,6 +255,7 @@ export default function TransactionsPage() {
           onSubmit={handleSaveTransaction}
           categories={allCategories}
           transactionToEdit={transactionToEdit}
+          preselectedBankId={selectedBankId} // Pré-selecionar o banco filtrado
         />
       )}
     </div>

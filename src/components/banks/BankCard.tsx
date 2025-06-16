@@ -1,6 +1,6 @@
 import { Clock, CreditCard, Eye, EyeOff, History, Pencil, Trash2 } from 'lucide-react';
 import { useState } from 'react';
-import { useBanks } from '../../hooks/useBanks';
+import { useBankAccounts } from '../../contexts/BankAccountContext';
 import type { BankAccount } from '../../types/finances';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { getBankInitials } from '../../utils/strings';
@@ -17,18 +17,15 @@ export default function BankCard({ bank, onViewTransactions, onRemoveRequest }: 
   const [showBalance, setShowBalance] = useState(true);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const { updateBank } = useBanks();
+  const { updateAccount } = useBankAccounts();
 
   const getAccountTypeLabel = (type: string) => {
     switch (type) {
       case 'checking':
-      case 'corrente':
         return 'Conta Corrente';
       case 'savings':
-      case 'poupanca':
         return 'Conta Poupança';
       case 'investment':
-      case 'investimento':
         return 'Conta Investimento';
       default:
         return type;
@@ -49,18 +46,25 @@ export default function BankCard({ bank, onViewTransactions, onRemoveRequest }: 
     color: string;
   }) => {
     try {
+      // Mapear os tipos de conta para o formato esperado pela API
+      const accountTypeMapping: Record<string, 'checking' | 'savings' | 'investment'> = {
+        'corrente': 'checking',
+        'poupanca': 'savings',
+        'investimento': 'investment'
+      };
+
       // Adaptar os dados do formulário para o formato esperado pelo banco de dados
       const bankData = {
-        name: formData.name,
-        type: formData.type,
-        account: formData.accountNumber,
+        bankName: formData.name,
+        accountType: accountTypeMapping[formData.type],
+        accountNumber: formData.accountNumber,
         agency: formData.agency,
         balance: formData.balance,
         color: formData.color
       };
 
       // Chamar a função de atualização
-      await updateBank(bank.id, bankData);
+      await updateAccount(bank.id, bankData);
       
       // Fechar o modal
       setShowEditModal(false);
@@ -205,7 +209,10 @@ export default function BankCard({ bank, onViewTransactions, onRemoveRequest }: 
         onSubmit={handleEditBank}
         initialData={{
           name: bank.bankName,
-          type: (bank.accountType as 'corrente' | 'poupanca' | 'investimento') || 'corrente',
+          // Mapear os tipos de conta para o formato esperado pelo formulário
+          type: bank.accountType === 'checking' ? 'corrente' : 
+                bank.accountType === 'savings' ? 'poupanca' : 
+                bank.accountType === 'investment' ? 'investimento' : 'corrente',
           accountNumber: bank.accountNumber || '',
           agency: bank.agency || '',
           balance: bank.balance || 0,

@@ -1,20 +1,19 @@
+import { Plus, Wallet } from 'lucide-react';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
-import { Plus, Wallet } from 'lucide-react';
 
-import BankCard from '../../components/banks/BankCard';
 import AddBankAccountModal from '../../components/banks/AddBankAccountModal';
-import ConfirmationModal from '../../components/ui/ConfirmationModal';
+import BankCard from '../../components/banks/BankCard';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
-import { formatCurrency } from '../../utils/formatCurrency';
+import ConfirmationModal from '../../components/ui/ConfirmationModal';
 import { useBankAccounts } from '../../contexts/BankAccountContext';
-import type { SaveableBankAccountData } from '../../types/finances';
-import type { BankAccount } from '../../types/finances';
+import type { BankAccount, SaveableBankAccountData } from '../../types/finances';
+import { formatCurrency } from '../../utils/formatCurrency';
 
 const PREMIUM_ACCOUNT_LIMIT = 5;
 
 export default function BanksPage() {
-  const { accounts, addAccount, removeAccount, isLoadingAccounts } = useBankAccounts();
+  const { accounts, createAccount, deleteAccount, loading: isLoadingAccounts } = useBankAccounts();
   const [isAddAccountModalOpen, setIsAddAccountModalOpen] = useState(false);
   const [isConfirmRemoveModalOpen, setIsConfirmRemoveModalOpen] = useState(false);
   const [accountToRemove, setAccountToRemove] = useState<BankAccount | null>(null);
@@ -26,7 +25,7 @@ export default function BanksPage() {
   };
 
   const handleSaveAccount = (data: SaveableBankAccountData) => {
-    addAccount(data);
+    createAccount(data);
     setIsAddAccountModalOpen(false);
   };
 
@@ -40,7 +39,7 @@ export default function BanksPage() {
 
   const executeRemoveAccount = () => {
     if (!accountToRemove) return;
-    removeAccount(accountToRemove.id);
+    deleteAccount(accountToRemove.id);
     setIsConfirmRemoveModalOpen(false);
     setAccountToRemove(null);
   };

@@ -323,6 +323,79 @@ export function useTransactions() {
         
         // Se a primeira parcela foi criada com sucesso, criar as parcelas restantes
         if (firstInstallment) {
+          // Atualizar o saldo do banco, se a transação tiver um banco vinculado
+          // CORREÇÃO: Usar apenas o valor da parcela, não o valor total
+          if (firstInstallment.bank_id) {
+            try {
+              console.log("Atualizando saldo do banco diretamente:", firstInstallment.bank_id, "com valor da parcela:", installmentAmount);
+              
+              // Chamar a função RPC do Supabase update_bank_balance
+              // Importante: Usamos apenas o valor da parcela, não o valor total
+              const { error: rpcError } = await supabase.rpc('update_bank_balance', {
+                bank_id: firstInstallment.bank_id,
+                amount: installmentAmount, // Usar o valor da parcela
+                transaction_type: firstInstallment.type
+              });
+              
+              if (rpcError) {
+                console.error("Erro ao chamar função update_bank_balance:", rpcError);
+                
+                // Plano B: Atualizar diretamente se a RPC falhar
+                console.log("Tentando atualizar manualmente...");
+                
+                // Obter o saldo atual da conta
+                const { data: bankData, error: fetchError } = await supabase
+                  .from('banks')
+                  .select('balance, name')
+                  .eq('id', firstInstallment.bank_id)
+                  .single();
+                  
+                if (fetchError) {
+                  console.error("Erro ao buscar dados do banco:", fetchError);
+                  return;
+                }
+                
+                if (!bankData) {
+                  console.error("Banco não encontrado:", firstInstallment.bank_id);
+                  return;
+                }
+                
+                console.log(`Banco encontrado: ${bankData.name}, Saldo atual: ${bankData.balance}`);
+                
+                // Calcular o novo saldo
+                const currentBalance = bankData.balance || 0;
+                let newBalance = currentBalance;
+                
+                if (firstInstallment.type === 'income') {
+                  // Se for receita, aumenta o saldo
+                  newBalance = currentBalance + installmentAmount; // Usar o valor da parcela
+                  console.log(`Aumentando saldo de ${currentBalance} para ${newBalance}`);
+                } else if (firstInstallment.type === 'expense') {
+                  // Se for despesa, diminui o saldo
+                  newBalance = currentBalance - installmentAmount; // Usar o valor da parcela
+                  console.log(`Diminuindo saldo de ${currentBalance} para ${newBalance}`);
+                }
+                
+                // Atualizar o saldo diretamente
+                const { error: updateError } = await supabase
+                  .from('banks')
+                  .update({ balance: newBalance })
+                  .eq('id', firstInstallment.bank_id);
+                  
+                if (updateError) {
+                  console.error("Erro ao atualizar saldo do banco:", updateError);
+                } else {
+                  console.log(`Saldo atualizado com sucesso para ${newBalance}`);
+                }
+              } else {
+                console.log("Saldo bancário atualizado com sucesso via RPC");
+              }
+            } catch (bankUpdateError) {
+              console.error("Exceção ao atualizar saldo do banco:", bankUpdateError);
+              // Não lançamos o erro para não interromper o fluxo
+            }
+          }
+          
           // Atualize o saldo do cartão, se estiver usando cartão de crédito
           if (transactionData.credit_card_id) {
             try {

@@ -38,12 +38,15 @@ function AddLoanModal({ isOpen, onClose, onAdd, loanToEdit }: AddLoanModalProps)
     installmentValue: '',
     nextPaymentDate: '',
     interestRate: '',
-    currentInstallment: ''
+    paidInstallments: ''
   });
 
   // Preencher o formulário se estiver editando
   useEffect(() => {
     if (loanToEdit) {
+      // Calcular parcelas pagas baseado nos dados do empréstimo
+      const paidInstallments = loanToEdit.installments - loanToEdit.remainingInstallments;
+      
       setFormData({
         name: loanToEdit.name,
         bank: loanToEdit.bank,
@@ -52,7 +55,7 @@ function AddLoanModal({ isOpen, onClose, onAdd, loanToEdit }: AddLoanModalProps)
         installmentValue: loanToEdit.installmentValue.toString(),
         nextPaymentDate: loanToEdit.nextPaymentDate,
         interestRate: loanToEdit.interestRate.toString(),
-        currentInstallment: (loanToEdit.installments - loanToEdit.remainingInstallments).toString()
+        paidInstallments: paidInstallments.toString()
       });
     }
   }, [loanToEdit]);
@@ -71,9 +74,9 @@ function AddLoanModal({ isOpen, onClose, onAdd, loanToEdit }: AddLoanModalProps)
     interestRate = interestRate.replace(/\.(?=.*\.)/g, '');
     
     // Calcular parcelas restantes com base na parcela atual
-    const currentInstallment = parseInt(formData.currentInstallment || '0');
+    const paidInstallments = parseInt(formData.paidInstallments || '0');
     const totalInstallments = parseInt(formData.installments);
-    const remainingInstallments = Math.max(0, totalInstallments - currentInstallment);
+    const remainingInstallments = Math.max(0, totalInstallments - paidInstallments);
     
     const loan = {
       name: formData.name,
@@ -84,7 +87,7 @@ function AddLoanModal({ isOpen, onClose, onAdd, loanToEdit }: AddLoanModalProps)
       nextPaymentDate: formData.nextPaymentDate,
       interestRate: parseFloat(interestRate),
       status: 'em_dia' as const,
-      currentInstallment: currentInstallment
+      paidInstallments: paidInstallments
     };
 
     onAdd(loan);
@@ -97,7 +100,7 @@ function AddLoanModal({ isOpen, onClose, onAdd, loanToEdit }: AddLoanModalProps)
       installmentValue: '',
       nextPaymentDate: '',
       interestRate: '',
-      currentInstallment: ''
+      paidInstallments: ''
     });
   };
 
@@ -298,15 +301,15 @@ function AddLoanModal({ isOpen, onClose, onAdd, loanToEdit }: AddLoanModalProps)
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Parcela Atual
+                  Parcelas Pagas
                 </label>
                 <input
                   type="text"
                   required
-                  value={formData.currentInstallment}
+                  value={formData.paidInstallments}
                   onChange={(e) => {
                     const value = e.target.value.replace(/\D/g, '');
-                    setFormData(prev => ({ ...prev, currentInstallment: value }));
+                    setFormData(prev => ({ ...prev, paidInstallments: value }));
                   }}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700"
                 />
@@ -391,8 +394,8 @@ export default function LoanManager() {
         const monthsPassed = (nextPaymentDate.getFullYear() - startDate.getFullYear()) * 12 + 
                             (nextPaymentDate.getMonth() - startDate.getMonth());
         
-        // Se temos current_installment, usamos esse valor
-        const currentInstallment = loan.current_installment || monthsPassed;
+        // Calcular parcelas pagas com base na data de início e próximo pagamento
+        const currentInstallment = monthsPassed;
         const remainingInstallments = Math.max(0, loan.installments - currentInstallment);
         const remainingAmount = remainingInstallments * loan.installment_value;
         
@@ -424,12 +427,14 @@ export default function LoanManager() {
     if (!user) return;
     
     try {
+      console.log("Dados do empréstimo a serem salvos:", newLoan);
+      
       // Se estamos editando, atualizamos o empréstimo existente
       if (loanToEdit) {
         // Calcular data de início (estimada com base na data do próximo pagamento e número de parcelas)
         const nextPaymentDate = new Date(newLoan.nextPaymentDate);
         
-        // Atualizar no banco de dados
+        // Atualizar no banco de dados - removendo campos que não existem na tabela
         const { error } = await supabase
           .from('loans')
           .update({
@@ -440,40 +445,53 @@ export default function LoanManager() {
             installment_value: newLoan.installmentValue,
             next_payment_date: newLoan.nextPaymentDate,
             interest_rate: newLoan.interestRate,
-            status: newLoan.status,
-            current_installment: newLoan.currentInstallment
+            status: newLoan.status || 'em_dia'
           })
           .eq('id', loanToEdit.id);
           
-        if (error) throw error;
+        if (error) {
+          console.error('Erro detalhado ao atualizar empréstimo:', error);
+          toast.error(`Erro ao atualizar empréstimo: ${error.message}`);
+          throw error;
+        }
         
         toast.success('Empréstimo atualizado com sucesso');
         setLoanToEdit(null);
       } else {
-        // Calcular data de início (estimada com base na data do próximo pagamento e número de parcelas)
+        // Calcular data de início (estimada com base na data do próximo pagamento e número de parcelas pagas)
         const nextPaymentDate = new Date(newLoan.nextPaymentDate);
         const startDate = new Date(nextPaymentDate);
-        startDate.setMonth(startDate.getMonth() - newLoan.currentInstallment); 
+        startDate.setMonth(startDate.getMonth() - (newLoan.paidInstallments ? parseInt(newLoan.paidInstallments.toString()) : 0)); 
+        
+        // Preparar dados para inserção, garantindo formatos corretos e removendo campos inexistentes
+        const loanData = {
+          user_id: user.id,
+          name: newLoan.name,
+          bank: newLoan.bank,
+          total_amount: parseFloat(newLoan.totalAmount.toString()),
+          installments: parseInt(newLoan.installments.toString()),
+          installment_value: parseFloat(newLoan.installmentValue.toString()),
+          next_payment_date: newLoan.nextPaymentDate,
+          interest_rate: parseFloat(newLoan.interestRate.toString()),
+          status: newLoan.status || 'em_dia',
+          start_date: startDate.toISOString().split('T')[0]
+        };
+        
+        console.log("Dados formatados para inserção:", loanData);
         
         // Inserir no banco de dados
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('loans')
-          .insert({
-            user_id: user.id,
-            name: newLoan.name,
-            bank: newLoan.bank,
-            total_amount: newLoan.totalAmount,
-            installments: newLoan.installments,
-            installment_value: newLoan.installmentValue,
-            next_payment_date: newLoan.nextPaymentDate,
-            interest_rate: newLoan.interestRate,
-            status: newLoan.status,
-            start_date: startDate.toISOString().split('T')[0],
-            current_installment: newLoan.currentInstallment
-          });
+          .insert(loanData)
+          .select();
           
-        if (error) throw error;
+        if (error) {
+          console.error('Erro detalhado ao adicionar empréstimo:', error);
+          toast.error(`Erro ao adicionar empréstimo: ${error.message}`);
+          throw error;
+        }
         
+        console.log("Empréstimo criado com sucesso:", data);
         toast.success('Empréstimo adicionado com sucesso');
       }
       
