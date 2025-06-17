@@ -14,6 +14,7 @@ interface Transaction {
   description: string;
   amount: number;
   date: string;
+  status?: string;
 }
 
 // Extender o tipo BankAccount para incluir recentTransactions
@@ -65,6 +66,35 @@ export default function BankAccountManager({ refreshTrigger = 0 }: BankAccountMa
       }
       
       console.log("Contas bancárias encontradas:", bankData);
+      
+      // Verificar e atualizar transações programadas cujas datas já passaram
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Normalizar para início do dia
+      
+      // Buscar transações agendadas cuja data já passou
+      const { data: overdueTransactions, error: overdueError } = await supabase
+        .from('transactions')
+        .select('*')
+        .lt('date', today.toISOString().split('T')[0])
+        .eq('status', 'pending');
+        
+      if (overdueError) {
+        console.error('Erro ao buscar transações vencidas:', overdueError);
+      } else if (overdueTransactions && overdueTransactions.length > 0) {
+        console.log(`Encontradas ${overdueTransactions.length} transações vencidas para atualizar`);
+        
+        // Atualizar o status das transações vencidas
+        const { error: updateError } = await supabase
+          .from('transactions')
+          .update({ status: 'completed' })
+          .in('id', overdueTransactions.map(t => t.id));
+          
+        if (updateError) {
+          console.error('Erro ao atualizar status das transações:', updateError);
+        } else {
+          console.log(`${overdueTransactions.length} transações atualizadas para status 'completed'`);
+        }
+      }
       
       // Para cada conta, buscar as transações recentes
       const accountsWithTransactions = await Promise.all(
@@ -295,6 +325,36 @@ export default function BankAccountManager({ refreshTrigger = 0 }: BankAccountMa
         </div>
       </div>
 
+      {loading && accounts.length === 0 ? (
+        <div className="text-center py-8">
+          <p className="text-gray-500 dark:text-gray-400">Carregando contas bancárias...</p>
+        </div>
+      ) : accounts.length === 0 ? (
+        <div className="text-center py-8">
+          <p className="text-gray-500 dark:text-gray-400">Você ainda não possui contas bancárias cadastradas.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {accounts.map(account => (
+            <BankCard 
+              key={account.id}
+              bank={account}
+              onViewTransactions={() => toggleTransactions(account.id)}
+              onRemoveRequest={handleRemoveBank}
+            />
+          ))}
+        </div>
+      )}
+      
+      {/* Modal para adicionar nova conta */}
+      <AddBankAccountModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onSaveAccount={handleSaveAccount}
+      />
+    </div>
+  );
+} 
       {loading && accounts.length === 0 ? (
         <div className="text-center py-8">
           <p className="text-gray-500 dark:text-gray-400">Carregando contas bancárias...</p>

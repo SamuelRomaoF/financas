@@ -1,4 +1,4 @@
-import { CreditCard, Edit, Trash } from 'lucide-react';
+import { Check, Clock, CreditCard, Edit, Trash } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../hooks/useAuth';
@@ -36,7 +36,7 @@ export default function CreditCardItem({ card, onEdit, onRemove }: CreditCardIte
         // Buscar transações associadas a este cartão especificamente
         const { data, error } = await supabase
           .from('transactions')
-          .select('id, description, amount, date, installments_total, installment_number, original_amount')
+          .select('id, description, amount, date, installments_total, installment_number, original_amount, status')
           .eq('credit_card_id', card.id)
           .eq('type', 'expense')
           .order('date', { ascending: false })
@@ -56,7 +56,8 @@ export default function CreditCardItem({ card, onEdit, onRemove }: CreditCardIte
             isInstallment: Boolean(t.installments_total && t.installments_total > 1),
             installmentInfo: t.installment_number && t.installments_total ? 
               `${t.installment_number}/${t.installments_total}` : '',
-            installmentNumber: t.installment_number
+            installmentNumber: t.installment_number,
+            status: t.status || 'pending'
           }));
           
           setRecentTransactions(formattedTransactions);
@@ -88,8 +89,8 @@ export default function CreditCardItem({ card, onEdit, onRemove }: CreditCardIte
               }
             }, 0);
             
-            setCurrentSpending(total);
-            console.log(`Total gasto no cartão ${card.name}: ${total}`);
+          setCurrentSpending(total);
+          console.log(`Total gasto no cartão ${card.name}: ${total}`);
           }
         }
       } catch (error) {
@@ -254,16 +255,28 @@ export default function CreditCardItem({ card, onEdit, onRemove }: CreditCardIte
                   {recentTransactions.map(transaction => (
                     <div key={transaction.id} className="flex justify-between items-center">
                       <div>
-                        <p className="text-sm text-gray-900 dark:text-white">
-                          {transaction.description}
-                          {transaction.isInstallment && (
-                            <span className="ml-1 text-xs px-1.5 py-0.5 bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400 rounded-md">
-                              {transaction.installmentInfo}
-                            </span>
+                        <div className="flex items-center gap-1">
+                          {transaction.status === 'completed' ? (
+                            <Check className="h-3 w-3 text-green-500" />
+                          ) : (
+                            <Clock className="h-3 w-3 text-amber-500" />
                           )}
-                        </p>
+                          <p className="text-sm text-gray-900 dark:text-white">
+                            {transaction.description}
+                            {transaction.isInstallment && (
+                              <span className="ml-1 text-xs px-1.5 py-0.5 bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400 rounded-md">
+                                {transaction.installmentInfo}
+                              </span>
+                            )}
+                          </p>
+                        </div>
                         <p className="text-xs text-gray-500 dark:text-gray-400">
                           {new Date(transaction.date).toLocaleDateString()}
+                          <span className="ml-2">
+                            {transaction.status === 'completed' ? 
+                              'Concluída' : 
+                              'Pendente'}
+                          </span>
                         </p>
                       </div>
                       <div className="text-right">
@@ -276,7 +289,7 @@ export default function CreditCardItem({ card, onEdit, onRemove }: CreditCardIte
                         {transaction.isInstallment && transaction.original_amount && (
                           <p className="text-xs text-gray-500 dark:text-gray-400">
                             Parcela: {formatCurrency(transaction.amount)}
-                          </p>
+                      </p>
                         )}
                       </div>
                     </div>
@@ -367,4 +380,4 @@ export default function CreditCardItem({ card, onEdit, onRemove }: CreditCardIte
       </Dialog>
     </>
   );
-} 
+}

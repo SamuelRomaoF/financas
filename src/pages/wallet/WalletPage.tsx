@@ -88,7 +88,7 @@ export default function WalletPage() {
           color: card.color || '#6366F1'
         };
       });
-
+      
       // Buscar todas as transações do usuário para calcular o valor total das compras parceladas
       const { data: allTransactions, error: transactionsError } = await supabase
         .from('transactions')
@@ -140,13 +140,13 @@ export default function WalletPage() {
         
         console.log(`WalletPage: Limite total atualizado: ${total}, Disponível: ${available}`);
       } else {
-        setCardsData(formattedCards);
-        
+      setCardsData(formattedCards);
+      
         // Log para debug
-        const total = formattedCards.reduce((total, card) => total + (card.limit || 0), 0);
-        const available = formattedCards.reduce((total, card) => total + ((card.limit || 0) - (card.currentSpending || 0)), 0);
-        
-        console.log(`WalletPage: Limite total atualizado: ${total}, Disponível: ${available}`);
+      const total = formattedCards.reduce((total, card) => total + (card.limit || 0), 0);
+      const available = formattedCards.reduce((total, card) => total + ((card.limit || 0) - (card.currentSpending || 0)), 0);
+      
+      console.log(`WalletPage: Limite total atualizado: ${total}, Disponível: ${available}`);
       }
       
     } catch (error) {

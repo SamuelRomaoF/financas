@@ -10,6 +10,7 @@ export const CATEGORY_COLORS: Record<string, string> = {
   investimentos: '#14B8A6', // Teal
   serviços: '#F97316',      // Laranja
   impostos: '#D946EF',      // Fúcsia
+  empréstimos: '#0891B2',   // Ciano
   outros: '#6B7280',        // Cinza
   'sem categoria': '#9CA3AF' // Cinza mais claro
 }; 

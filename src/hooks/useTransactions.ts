@@ -135,7 +135,7 @@ export function useTransactions() {
         }
       }
       
-      // Verifica se é uma transação parcelada
+      // Verifica se é uma transação parcelada - garantir que installments_total seja pelo menos 2
       const isInstallment = transactionData.installments_total && transactionData.installments_total > 1;
       
       // Se não for uma transação parcelada, processa normalmente
@@ -256,8 +256,10 @@ export function useTransactions() {
       else {
         console.log("Processando transação parcelada com", transactionData.installments_total, "parcelas");
         
-        // Verificar se já temos o valor original e o valor da parcela
-        const totalInstallments = transactionData.installments_total || 1;
+        // Garantir que installments_total seja pelo menos 2
+        const totalInstallments = Math.max(transactionData.installments_total || 2, 2);
+        transactionData.installments_total = totalInstallments;
+        
         let originalAmount;
         let installmentAmount;
         
@@ -284,6 +286,7 @@ export function useTransactions() {
           ...transactionData,
           amount: installmentAmount,
           installment_number: 1,
+          installments_total: totalInstallments,  // Garantir que o número de parcelas seja mantido
           original_amount: originalAmount
         };
         
@@ -467,6 +470,7 @@ export function useTransactions() {
               date: installmentDate.toISOString().split('T')[0],
               amount: installmentAmount,
               installment_number: i,
+              installments_total: totalInstallments, // Garantir que o número de parcelas seja mantido
               original_amount: originalAmount,
               parent_transaction_id: firstInstallment.id
             };

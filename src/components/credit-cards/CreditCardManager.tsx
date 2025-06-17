@@ -1,5 +1,5 @@
 import { Settings } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
@@ -30,6 +30,7 @@ export interface CreditCard {
     installmentInfo: string;
     originalAmount: number;
     installmentNumber?: number;
+    status?: string;
   }>;
   selected?: boolean;
 }
@@ -41,36 +42,180 @@ export default function CreditCardManager() {
   const [creditCards, setCreditCards] = useState<CreditCard[]>([]);
   const [selectedCards, setSelectedCards] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedCard, setSelectedCard] = useState<CreditCard | null>(null);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
 
-  // Carregar cartões de crédito do usuário
+  // Handler para o evento de atualização de transação
+  const handleTransactionUpdated = useCallback(() => {
+    console.log('Evento de atualização de transação detectado no CreditCardManager');
+    fetchCreditCards();
+  }, []);
+  
+  // Função para verificar e processar pagamentos automáticos
+  const checkAutomaticPayments = async () => {
+    if (!user) return;
+    
+    try {
+      // Buscar todos os cartões do usuário
+      const { data: cards, error } = await supabase
+        .from('credit_cards')
+        .select('*')
+        .eq('user_id', user.id);
+        
+      if (error) throw error;
+      
+      // Data atual
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      // Verificar cada cartão
+      for (const card of cards) {
+        // Verificar se hoje é o dia de vencimento da fatura
+        const dueDate = new Date();
+        dueDate.setDate(card.due_date);
+        dueDate.setHours(0, 0, 0, 0);
+        
+        // Verificar se a fatura venceu hoje ou em dias anteriores e ainda não foi paga
+        if (dueDate <= today && card.current_invoice > 0) {
+          console.log(`Fatura do cartão ${card.name} venceu em ${dueDate.toLocaleDateString()}. Verificando pagamento automático...`);
+          
+          // Verificar se já existe um pagamento registrado para esta fatura neste mês
+          const currentMonth = today.getMonth();
+          const currentYear = today.getFullYear();
+          
+          const { data: existingPayments, error: paymentError } = await supabase
+            .from('transactions')
+            .select('*')
+            .eq('credit_card_id', card.id)
+            .eq('is_card_bill_payment', true)
+            .gte('date', `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-01`);
+            
+          if (paymentError) {
+            console.error(`Erro ao verificar pagamentos existentes para o cartão ${card.name}:`, paymentError);
+            continue;
+          }
+          
+          // Se não houver pagamento registrado para este mês, registrar automaticamente
+          if (!existingPayments || existingPayments.length === 0) {
+            console.log(`Nenhum pagamento registrado para a fatura do cartão ${card.name} neste mês. Registrando pagamento automático...`);
+            
+            // Buscar a conta bancária principal do usuário
+            const { data: bankAccounts, error: bankError } = await supabase
+              .from('banks')
+              .select('*')
+              .eq('user_id', user.id)
+              .eq('is_primary', true);
+              
+            if (bankError || !bankAccounts || bankAccounts.length === 0) {
+              console.error('Erro ao buscar conta bancária principal:', bankError);
+              toast.error(`Não foi possível registrar o pagamento automático da fatura do cartão ${card.name}. Conta bancária não encontrada.`);
+              continue;
+            }
+            
+            const primaryAccount = bankAccounts[0];
+            
+            // Registrar o pagamento automático
+            const paymentData = {
+              user_id: user.id,
+              description: `Pagamento automático da fatura do cartão ${card.name}`,
+              amount: card.current_invoice,
+              date: today.toISOString().split('T')[0],
+              type: "expense",
+              category_id: null, // Categoria padrão para pagamentos
+              bank_id: primaryAccount.id,
+              credit_card_id: card.id,
+              is_card_bill_payment: true,
+              status: 'pago'
+            };
+            
+            // Inserir a transação
+            const { error: insertError } = await supabase
+              .from('transactions')
+              .insert(paymentData);
+              
+            if (insertError) {
+              console.error(`Erro ao registrar pagamento automático para o cartão ${card.name}:`, insertError);
+              toast.error(`Erro ao registrar pagamento automático da fatura do cartão ${card.name}`);
+              continue;
+            }
+            
+            // Atualizar o valor gasto do cartão
+            const { error: updateError } = await supabase
+              .from('credit_cards')
+              .update({ current_invoice: 0 })
+              .eq('id', card.id);
+              
+            if (updateError) {
+              console.error(`Erro ao atualizar valor da fatura do cartão ${card.name}:`, updateError);
+              continue;
+            }
+            
+            toast.success(`Pagamento automático da fatura do cartão ${card.name} registrado com sucesso!`);
+            
+            // Atualizar os cartões
+            fetchCreditCards();
+          } else {
+            console.log(`Já existe pagamento registrado para a fatura do cartão ${card.name} neste mês.`);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao verificar pagamentos automáticos:', error);
+    }
+  };
+
   useEffect(() => {
     if (user) {
       fetchCreditCards();
+      
+      // Adiciona um listener para o evento de atualização de transação
+      document.addEventListener('transaction-updated', handleTransactionUpdated);
+      
+      // Verificar pagamentos automáticos ao carregar o componente
+      checkAutomaticPayments();
+      
+      return () => {
+        document.removeEventListener('transaction-updated', handleTransactionUpdated);
+      };
     }
-  }, [user]);
-
-  // Adicionar listener para o evento de atualização de transação
-  useEffect(() => {
-    // Função para lidar com o evento de atualização de transação
-    const handleTransactionUpdated = () => {
-      console.log("CreditCardManager: Evento de transação atualizada detectado");
-      fetchCreditCards(); // Recarregar os dados dos cartões quando uma transação for atualizada
-    };
-
-    // Adicionar listener
-    document.addEventListener('transaction-updated', handleTransactionUpdated);
-
-    // Remover listener quando o componente for desmontado
-    return () => {
-      document.removeEventListener('transaction-updated', handleTransactionUpdated);
-    };
-  }, []);
+  }, [user, handleTransactionUpdated]);
 
   const fetchCreditCards = async () => {
     if (!user) return;
     
     try {
       setIsLoading(true);
+      
+      // Verificar e atualizar transações de cartão de crédito cujas datas já passaram
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Normalizar para início do dia
+      
+      // Buscar transações de cartão de crédito agendadas cuja data já passou
+      const { data: overdueCardTransactions, error: overdueError } = await supabase
+        .from('transactions')
+        .select('*')
+        .lt('date', today.toISOString().split('T')[0])
+        .eq('status', 'pending')
+        .not('credit_card_id', 'is', null); // Apenas transações com cartão de crédito
+        
+      if (overdueError) {
+        console.error('Erro ao buscar transações de cartão vencidas:', overdueError);
+      } else if (overdueCardTransactions && overdueCardTransactions.length > 0) {
+        console.log(`Encontradas ${overdueCardTransactions.length} transações de cartão vencidas para atualizar`);
+        
+        // Atualizar o status das transações vencidas
+        const { error: updateError } = await supabase
+          .from('transactions')
+          .update({ status: 'completed' })
+          .in('id', overdueCardTransactions.map(t => t.id));
+          
+        if (updateError) {
+          console.error('Erro ao atualizar status das transações de cartão:', updateError);
+        } else {
+          console.log(`${overdueCardTransactions.length} transações de cartão atualizadas para status 'completed'`);
+        }
+      }
+      
       // Buscar cartões de crédito
       const { data: cardsData, error: cardsError } = await supabase
         .from('credit_cards')

@@ -16,6 +16,8 @@ interface SummaryData {
   income: number;
   expenses: number;
   savings: number;
+  pagamentosEfetuados: number;
+  despesasAgendadas: number;
 }
 
 interface TransactionDataPoint {
@@ -105,6 +107,72 @@ const mapAlertTypeToDisplay = (dbType: string): string => {
   }
 };
 
+// Função para calcular dados mensais a partir das transações e empréstimos
+const calculateMonthlyData = (transactions: any[], loans: any[] = []) => {
+  const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+  const monthlyDataMap = new Map<string, { receitas: number; despesas: number }>();
+  
+  // Inicializar os últimos 12 meses (Premium mostra mais meses)
+  const today = new Date();
+  for (let i = 11; i >= 0; i--) {
+    const month = new Date(today.getFullYear(), today.getMonth() - i, 1);
+    const monthKey = monthNames[month.getMonth()];
+    monthlyDataMap.set(monthKey, { receitas: 0, despesas: 0 });
+  }
+  
+  // Preencher com dados reais das transações
+  transactions?.forEach(t => {
+    const date = new Date(t.date);
+    const monthKey = monthNames[date.getMonth()];
+    
+    if (monthlyDataMap.has(monthKey)) {
+      const monthData = monthlyDataMap.get(monthKey)!;
+      if (t.type === 'income') {
+        monthData.receitas += t.amount;
+      } else {
+        monthData.despesas += t.amount;
+      }
+    }
+  });
+  
+  // Adicionar parcelas de empréstimos aos dados mensais
+  if (loans && loans.length > 0) {
+    loans.forEach(loan => {
+      // Calcular os meses de pagamento do empréstimo
+      const startDate = new Date(loan.start_date);
+      const installments = loan.installments;
+      const installmentValue = loan.installment_value;
+      
+      // Adicionar cada parcela ao mês correspondente
+      for (let i = 0; i < installments; i++) {
+        const paymentDate = new Date(startDate);
+        paymentDate.setMonth(paymentDate.getMonth() + i);
+        
+        // Verificar se o mês está dentro do período que estamos exibindo (últimos 12 meses)
+        const now = new Date();
+        const twelveMonthsAgo = new Date();
+        twelveMonthsAgo.setMonth(now.getMonth() - 11);
+        
+        if (paymentDate >= twelveMonthsAgo && paymentDate <= now) {
+          const monthKey = monthNames[paymentDate.getMonth()];
+          if (monthlyDataMap.has(monthKey)) {
+            const monthData = monthlyDataMap.get(monthKey)!;
+            // Adicionar o valor da parcela às despesas do mês
+            monthData.despesas += installmentValue;
+          }
+        }
+      }
+    });
+  }
+  
+  // Converter para array
+  return Array.from(monthlyDataMap.entries()).map(([name, data]) => ({
+    name,
+    receitas: data.receitas,
+    despesas: data.despesas
+  }));
+};
+
 export default function PremiumDashboard() {
   const { user } = useAuth();
   const { transactions } = useTransactions();
@@ -114,6 +182,8 @@ export default function PremiumDashboard() {
     income: 0,
     expenses: 0,
     savings: 0,
+    pagamentosEfetuados: 0,
+    despesasAgendadas: 0,
   });
   const [transactionData, setTransactionData] = useState<TransactionDataPoint[]>([]);
   const [monthlyData, setMonthlyData] = useState<MonthlyDataPoint[]>([]);
@@ -156,205 +226,205 @@ export default function PremiumDashboard() {
     }
   };
 
-  const loadDashboardData = async () => {
+  const loadDashboardData = async (): Promise<void> => {
     if (!user) return;
     
     try {
-      // 1. Carregar dados de despesas por categoria
-      const { data: categoryData, error: categoryError } = await supabase.rpc(
-        'get_expenses_by_category',
-        { user_id_param: user.id }
-      );
-
-      if (categoryError) {
-        console.error('Erro na chamada RPC get_expenses_by_category:', categoryError);
-        // Calcular dados de categoria manualmente como fallback
-        const expenseTransactions = transactions.filter(t => t.type === 'expense');
-        
-        // Calcular despesas por categoria usando o valor das parcelas (amount)
-        // Para transações parceladas, isso garante que apenas o valor da parcela
-        // seja contabilizado, não o valor total da compra
-        const expensesByCategory = expenseTransactions.reduce((acc, transaction) => {
-          // Na interface Transaction, category é uma string
-          const categoryName = transaction.category || 'Outros';
-          
-          if (!acc[categoryName]) {
-            acc[categoryName] = 0;
-          }
-          acc[categoryName] += transaction.amount;
-          return acc;
-        }, {} as Record<string, number>);
-        
-        const formattedData = Object.entries(expensesByCategory).map(([name, value]) => ({
-          name,
-          value,
-          color: getCategoryColor(name)
-        }));
-        
-        setTransactionData(formattedData);
-      } else {
-        // Formatar dados retornados pela RPC
-        const formattedData = categoryData.map((item: any) => ({
-          name: item.category_name,
-          value: Number(item.total_amount),
-          color: getCategoryColor(item.category_name)
-        }));
-        
-        setTransactionData(formattedData);
-      }
+      setIsLoading(true);
       
-      // 2. Carregar resumo financeiro mensal
-      const { data: monthlyData, error: monthlyError } = await supabase.rpc(
-        'get_monthly_summary',
-        { user_id_param: user.id }
-      );
-
-      if (monthlyError) {
-        console.error('Erro na chamada RPC get_monthly_summary:', monthlyError);
-        // Calcular dados mensais manualmente como fallback
-        const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-        const monthlyDataMap = new Map<string, { receitas: number; despesas: number }>();
+      // Buscar transações
+      const { data: transactions, error } = await supabase
+        .from('transactions')
+        .select(`
+          *,
+          categories (
+            id,
+            name,
+            color,
+            icon
+          )
+        `)
+        .order('date', { ascending: false });
         
-        // Inicializar os últimos 12 meses (Premium mostra mais meses)
-        const today = new Date();
-        for (let i = 11; i >= 0; i--) {
-          const month = new Date(today.getFullYear(), today.getMonth() - i, 1);
-          const monthKey = monthNames[month.getMonth()];
-          monthlyDataMap.set(monthKey, { receitas: 0, despesas: 0 });
-        }
-        
-        // Preencher com dados reais das transações
-        transactions.forEach(t => {
-          const date = new Date(t.date);
-          const monthKey = monthNames[date.getMonth()];
-          
-          if (monthlyDataMap.has(monthKey)) {
-            const monthData = monthlyDataMap.get(monthKey)!;
-            // Usar o valor da parcela (amount) para cada transação
-            // Para transações parceladas, isso garante que apenas o valor da parcela
-            // seja contabilizado, não o valor total da compra
-            if (t.type === 'income') {
-              monthData.receitas += t.amount;
-            } else {
-              monthData.despesas += t.amount;
-            }
-          }
-        });
-        
-        // Buscar empréstimos ativos para adicionar ao gráfico
-        const { data: allLoans } = await supabase
-          .from('loans')
-          .select('*')
-          .eq('user_id', user.id)
-          .neq('status', 'quitado');
-          
-        if (allLoans && allLoans.length > 0) {
-          // Adicionar parcelas de empréstimos aos dados mensais
-          allLoans.forEach(loan => {
-            // Calcular os meses de pagamento do empréstimo
-            const startDate = new Date(loan.start_date);
-            const installments = loan.installments;
-            const installmentValue = loan.installment_value;
-            
-            // Adicionar cada parcela ao mês correspondente
-            for (let i = 0; i < installments; i++) {
-              const paymentDate = new Date(startDate);
-              paymentDate.setMonth(paymentDate.getMonth() + i);
-              
-              // Verificar se o mês está dentro do período que estamos exibindo (últimos 12 meses)
-              const now = new Date();
-              const twelveMonthsAgo = new Date();
-              twelveMonthsAgo.setMonth(now.getMonth() - 11);
-              
-              if (paymentDate >= twelveMonthsAgo && paymentDate <= now) {
-                const monthKey = monthNames[paymentDate.getMonth()];
-                if (monthlyDataMap.has(monthKey)) {
-                  const monthData = monthlyDataMap.get(monthKey)!;
-                  // Adicionar o valor da parcela às despesas do mês
-                  monthData.despesas += installmentValue;
-                }
-              }
-            }
-          });
-        }
-        
-        // Converter para array
-        const formattedMonthlyData = Array.from(monthlyDataMap.entries()).map(([name, data]) => ({
-          name,
-          receitas: data.receitas,
-          despesas: data.despesas
-        }));
-        
-        setMonthlyData(formattedMonthlyData);
-      } else {
-        // Formatar dados retornados pela RPC
-        const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-        const formattedMonthlyData = monthlyData.map((item: any) => ({
-          name: monthNames[parseInt(item.month) - 1],
-          receitas: Number(item.income),
-          despesas: Number(item.expenses)
-        }));
-        
-        setMonthlyData(formattedMonthlyData);
-      }
+      if (error) throw error;
       
-      // 3. Calcular resumo financeiro
-      const currentDate = new Date();
-      const currentMonth = currentDate.getMonth();
-      const currentYear = currentDate.getFullYear();
-
-      // Filtrar transações do mês atual
-      const monthlyTransactions = transactions.filter(t => {
-        const transactionDate = new Date(t.date);
-        return transactionDate.getMonth() === currentMonth && transactionDate.getFullYear() === currentYear;
-      });
-
-      // Buscar empréstimos ativos para calcular pagamentos mensais
+      // Buscar empréstimos ativos
       const { data: activeLoans, error: loanError } = await supabase
         .from('loans')
         .select('*')
         .eq('user_id', user.id)
         .neq('status', 'quitado');
-
+        
       if (loanError) {
         console.error('Erro ao buscar empréstimos ativos:', loanError);
       }
-
-      // Calcular pagamentos de empréstimos do mês atual (usando o valor da parcela)
+      
+      // Obter data atual
+      const currentDate = new Date();
+      const currentMonth = currentDate.getMonth();
+      const currentYear = currentDate.getFullYear();
+      
+      // Filtrar transações do mês atual
+      const monthlyTransactions = transactions?.filter(t => {
+        const transactionDate = new Date(t.date);
+        return transactionDate.getMonth() === currentMonth && 
+               transactionDate.getFullYear() === currentYear;
+      }) || [];
+      
+      // Calcular receitas e despesas
+      const income = monthlyTransactions
+        .filter(t => t.type === 'income')
+        .reduce((acc, t) => acc + t.amount, 0);
+        
+      const expenses = monthlyTransactions
+        .filter(t => t.type === 'expense')
+        .reduce((acc, t) => acc + t.amount, 0);
+        
+      // Calcular pagamentos de empréstimos do mês atual
       const loanExpenses = (activeLoans || []).reduce((acc, loan) => {
         // Verificar se o próximo pagamento está no mês atual
         const nextPayment = new Date(loan.next_payment_date);
-        if (nextPayment.getMonth() === currentMonth && nextPayment.getFullYear() === currentYear) {
+        const isPendingPayment = nextPayment.getMonth() === currentMonth && 
+                                nextPayment.getFullYear() === currentYear;
+        
+        // Também verificar se houve algum pagamento já realizado neste mês
+        // (isso acontece quando editamos um empréstimo com data no passado)
+        const hasPaidThisMonth = loan.paid_installments > 0 && 
+                               loan.installments > 0 &&
+                               ((new Date(loan.start_date).getMonth() === currentMonth && 
+                                 new Date(loan.start_date).getFullYear() === currentYear) ||
+                               (loan.last_payment_date && 
+                                new Date(loan.last_payment_date).getMonth() === currentMonth &&
+                                new Date(loan.last_payment_date).getFullYear() === currentYear));
+                                
+        console.log(`Empréstimo ${loan.name}: Próximo pagamento no mês atual: ${isPendingPayment}, Pagamento já realizado este mês: ${hasPaidThisMonth}`);
+                               
+        // Adicionar o valor ao total se houver pagamento pendente ou já realizado neste mês
+        if (isPendingPayment || hasPaidThisMonth) {
           return acc + loan.installment_value;
         }
         return acc;
       }, 0);
-
-      // Calcular receitas e despesas das transações normais
-      const income = monthlyTransactions
-        .filter(t => t.type === 'income')
-        .reduce((acc, t) => acc + t.amount, 0);
-
-      // Calcular despesas - usando apenas o valor da parcela (amount)
-      // Para transações parceladas, o campo amount já contém o valor da parcela individual
-      // e não o valor total da compra (que estaria em original_amount)
-      const expenses = monthlyTransactions
-        .filter(t => t.type === 'expense')
-        .reduce((acc, t) => acc + t.amount, 0);
-
-      // Adicionar pagamentos de empréstimos às despesas
-      const totalExpenses = expenses + loanExpenses;
-
-      // Calcular saldo e economia sugerida
+      
+      // Verificar pagamentos já registrados em transações
+      // (isso é necessário para empréstimos que são pagos com transações regulares)
+      const loanRelatedTransactions = monthlyTransactions.filter(t => 
+        t.is_loan_payment === true || 
+        t.type === 'expense' && t.description?.toLowerCase().includes('empréstimo') ||
+        t.is_card_bill_payment === true // Incluir também pagamentos de fatura de cartão
+      );
+      
+      const existingLoanPayments = loanRelatedTransactions.reduce((acc, t) => acc + t.amount, 0);
+      console.log(`Pagamentos de empréstimos já registrados em transações: ${existingLoanPayments}`);
+      
+      // Evitar duplicação: usar apenas o maior valor entre os empréstimos calculados e as transações já registradas
+      const finalLoanExpenses = Math.max(loanExpenses, existingLoanPayments);
+      console.log(`Despesas finais de empréstimos: ${finalLoanExpenses}`);
+      
+      // Adicionar pagamentos de empréstimos às despesas totais
+      const totalExpenses = expenses + finalLoanExpenses;
+      
+      // Calcular saldo e economia
       const balance = income - totalExpenses;
-      const savings = income * 0.15; // 15% da renda como economia sugerida para premium
-
+      const savings = income * 0.2; // 20% da renda como economia sugerida
+      
+      // Separar pagamentos efetuados e despesas agendadas
+      const paidTransactions = monthlyTransactions.filter(t => 
+        t.type === 'expense' && (t as any).status === 'pago'
+      );
+      
+      const scheduledTransactions = monthlyTransactions.filter(t => 
+        t.type === 'expense' && (t as any).status !== 'pago'
+      );
+      
+      const pagamentosEfetuados = paidTransactions.reduce((acc, t) => acc + t.amount, 0);
+      const despesasAgendadas = scheduledTransactions.reduce((acc, t) => acc + t.amount, 0) + loanExpenses;
+      
+      // Atualizar dados do resumo financeiro
       setSummaryData({
         balance,
         income,
         expenses: totalExpenses,
-        savings
+        savings,
+        pagamentosEfetuados,
+        despesasAgendadas
       });
+      
+      // Buscar dados para o gráfico de despesas por categoria
+      try {
+        const { data: expensesByCategory, error: expensesByCategoryError } = await supabase.rpc(
+          'get_expenses_by_category',
+          {
+            user_id_param: user?.id
+          }
+        );
+
+        if (expensesByCategoryError) {
+          console.error('Erro na chamada RPC get_expenses_by_category:', expensesByCategoryError);
+          throw expensesByCategoryError;
+        }
+        
+        // Formatar dados da RPC
+        const formattedCategoryData = expensesByCategory.map((item: any) => ({
+          name: item.category_name,
+          value: Number(item.total_amount),
+          color: CATEGORY_COLORS[item.category_name.toLowerCase()] || CATEGORY_COLORS['outros']
+        }));
+        
+        // Adicionar despesas de empréstimos na categoria "Empréstimos"
+        if (finalLoanExpenses > 0) {
+          const loanCategoryIndex = formattedCategoryData.findIndex((c: { name: string }) => c.name === 'Empréstimos');
+          if (loanCategoryIndex >= 0) {
+            formattedCategoryData[loanCategoryIndex].value += finalLoanExpenses;
+          } else {
+            formattedCategoryData.push({
+              name: 'Empréstimos',
+              value: finalLoanExpenses,
+              color: CATEGORY_COLORS['empréstimos'] || CATEGORY_COLORS['outros']
+            });
+          }
+        }
+        
+        setTransactionData(formattedCategoryData);
+      } catch (categoryError) {
+        console.error('Erro ao processar dados de categorias:', categoryError);
+      }
+      
+      // Buscar resumo mensal
+      try {
+        const { data: monthlySummary, error: monthlySummaryError } = await supabase.rpc(
+          'get_monthly_summary',
+          {
+            user_id_param: user?.id
+          }
+        );
+
+        if (monthlySummaryError) {
+          console.error('Erro na chamada RPC get_monthly_summary:', monthlySummaryError);
+          throw monthlySummaryError;
+        }
+        
+        // Processar dados do resumo mensal
+        if (monthlySummary && monthlySummary.length > 0) {
+          // Formatar dados para o gráfico
+          const formattedMonthlyData = monthlySummary.map((item: any) => ({
+            name: item.month_name,
+            receitas: Number(item.income),
+            despesas: Number(item.expenses)
+          }));
+          setMonthlyData(formattedMonthlyData);
+        } else {
+          // Usar dados calculados localmente como alternativa
+          const monthlyDataCalculated = calculateMonthlyData(monthlyTransactions || [], activeLoans || []);
+          setMonthlyData(monthlyDataCalculated);
+        }
+      } catch (error) {
+        console.error('Erro ao processar resumo mensal:', error);
+        
+        // Fallback para cálculo local
+        const monthlyDataCalculated = calculateMonthlyData(monthlyTransactions || [], activeLoans || []);
+        setMonthlyData(monthlyDataCalculated);
+      }
       
     } catch (error) {
       console.error('Erro ao carregar dados do dashboard:', error);
@@ -374,7 +444,7 @@ export default function PremiumDashboard() {
   return (
     <div className="space-y-6">
       <DashboardHeader planName="Premium" onRefresh={loadDashboardData} />
-      <ResumoFinanceiro summaryData={summaryData} />
+      <ResumoFinanceiro summaryData={summaryData} showNewFields={true} />
       <GraficosDashboard 
         transactionData={transactionData} 
         monthlyData={monthlyData} 
@@ -383,8 +453,8 @@ export default function PremiumDashboard() {
       />
       <AlertasSection alerts={alerts} />
       
-         <CreditCardManager />
-         <LoanManager />
+      <CreditCardManager />
+      <LoanManager />
     </div>
   );
 } 

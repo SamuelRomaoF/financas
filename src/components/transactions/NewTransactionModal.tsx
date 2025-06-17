@@ -45,7 +45,7 @@ export default function NewTransactionModal({
   const [creditCards, setCreditCards] = useState<CreditCard[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'pix'>(preselectedBankId ? 'pix' : 'card');
   const [isInstallment, setIsInstallment] = useState<boolean>(false);
-  const [installmentsTotal, setInstallmentsTotal] = useState<number>(1);
+  const [installmentsTotal, setInstallmentsTotal] = useState<number>(2);
   const { accounts } = useBankAccounts();
   
   const { user } = useAuth();
@@ -70,6 +70,13 @@ export default function NewTransactionModal({
       setPaymentMethod('pix');
     }
   }, [preselectedBankId, isEditMode]);
+
+  // Efeito para garantir que o número de parcelas seja pelo menos 2 quando marcar como parcelado
+  useEffect(() => {
+    if (isInstallment && installmentsTotal < 2) {
+      setInstallmentsTotal(2);
+    }
+  }, [isInstallment]);
 
   // Carregar cartões de crédito
   useEffect(() => {
@@ -129,7 +136,7 @@ export default function NewTransactionModal({
         setInstallmentsTotal(transactionToEdit.installments_total);
       } else {
         setIsInstallment(false);
-        setInstallmentsTotal(1);
+        setInstallmentsTotal(2); // Manter o valor padrão de 2 parcelas
       }
     } else if (!isEditMode && preselectedBankId) {
       // Se não estiver editando mas tiver um banco pré-selecionado
@@ -236,7 +243,7 @@ export default function NewTransactionModal({
     setSelectedCardId('');
     setPaymentMethod('card');
     setIsInstallment(false);
-    setInstallmentsTotal(1);
+    setInstallmentsTotal(2); // Resetar para o valor padrão de 2 parcelas
     onClose();
   };
 
@@ -254,6 +261,16 @@ export default function NewTransactionModal({
 
   const handleDateChange = (e: ChangeEvent<HTMLInputElement>) => {
     setDate(e.target.value);
+  };
+
+  // Quando o usuário marca a opção de parcelamento
+  const handleInstallmentChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const checked = e.target.checked;
+    setIsInstallment(checked);
+    // Se estiver marcando, garantir que tenha pelo menos 2 parcelas
+    if (checked && installmentsTotal < 2) {
+      setInstallmentsTotal(2);
+    }
   };
 
   return (
@@ -449,7 +466,7 @@ export default function NewTransactionModal({
                           type="checkbox"
                           id="isInstallment"
                           checked={isInstallment}
-                          onChange={(e) => setIsInstallment(e.target.checked)}
+                          onChange={handleInstallmentChange}
                           className="h-5 w-5 rounded-md border-2 border-gray-300 checked:border-primary-500 checked:bg-primary-500 text-white focus:ring-primary-500 focus:ring-offset-1 focus:ring-2 transition-colors appearance-none relative after:absolute after:content-['✓'] after:text-white after:font-bold after:text-sm after:top-[-1px] after:left-[3px] after:opacity-0 checked:after:opacity-100"
                         />
                         <label htmlFor="isInstallment" className="flex items-center ml-3 text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer">
@@ -565,4 +582,4 @@ export default function NewTransactionModal({
       </div>
     </div>
   );
-} 
+}

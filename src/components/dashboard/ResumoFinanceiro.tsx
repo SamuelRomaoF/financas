@@ -1,20 +1,27 @@
-import { BarChart3, Target, TrendingDown, TrendingUp } from 'lucide-react';
-import { Card, CardContent } from '../ui/Card';
+import { BarChart3, Calendar, CreditCard, Target, TrendingDown, TrendingUp } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatCurrency';
+import { Card, CardContent } from '../ui/Card';
 
 interface SummaryData {
   balance: number;
   income: number;
   expenses: number;
   savings: number;
+  pagamentosEfetuados?: number;
+  despesasAgendadas?: number;
 }
 
 interface ResumoFinanceiroProps {
   summaryData: SummaryData;
   showSavings?: boolean;
+  showNewFields?: boolean;
 }
 
-export default function ResumoFinanceiro({ summaryData, showSavings = true }: ResumoFinanceiroProps) {
+export default function ResumoFinanceiro({ 
+  summaryData, 
+  showSavings = true,
+  showNewFields = false 
+}: ResumoFinanceiroProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
       <Card className="bg-white dark:bg-gray-800">
@@ -45,34 +52,72 @@ export default function ResumoFinanceiro({ summaryData, showSavings = true }: Re
         </CardContent>
       </Card>
 
-      <Card className="bg-white dark:bg-gray-800">
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Despesas do Mês</p>
-              <h3 className="text-2xl font-bold text-error-600 dark:text-error-400 mt-1">{formatCurrency(summaryData.expenses)}</h3>
-            </div>
-            <div className="h-12 w-12 bg-error-100 dark:bg-error-800/30 rounded-full flex items-center justify-center">
-              <TrendingDown className="h-6 w-6 text-error-600 dark:text-error-400" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {showNewFields ? (
+        <>
+          <Card className="bg-white dark:bg-gray-800">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Pagamentos Efetuados</p>
+                  <h3 className="text-2xl font-bold text-error-600 dark:text-error-400 mt-1">
+                    {formatCurrency(summaryData.pagamentosEfetuados || 0)}
+                  </h3>
+                </div>
+                <div className="h-12 w-12 bg-error-100 dark:bg-error-800/30 rounded-full flex items-center justify-center">
+                  <CreditCard className="h-6 w-6 text-error-600 dark:text-error-400" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-      {showSavings && (
-        <Card className="bg-white dark:bg-gray-800">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Economias</p>
-                <h3 className="text-2xl font-bold text-warning-600 dark:text-warning-400 mt-1">{formatCurrency(summaryData.savings)}</h3>
+          <Card className="bg-white dark:bg-gray-800">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Despesas Agendadas</p>
+                  <h3 className="text-2xl font-bold text-warning-600 dark:text-warning-400 mt-1">
+                    {formatCurrency(summaryData.despesasAgendadas || 0)}
+                  </h3>
+                </div>
+                <div className="h-12 w-12 bg-warning-100 dark:bg-warning-800/30 rounded-full flex items-center justify-center">
+                  <Calendar className="h-6 w-6 text-warning-600 dark:text-warning-400" />
+                </div>
               </div>
-              <div className="h-12 w-12 bg-warning-100 dark:bg-warning-800/30 rounded-full flex items-center justify-center">
-                <Target className="h-6 w-6 text-warning-600 dark:text-warning-400" />
+            </CardContent>
+          </Card>
+        </>
+      ) : (
+        <>
+          <Card className="bg-white dark:bg-gray-800">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Despesas do Mês</p>
+                  <h3 className="text-2xl font-bold text-error-600 dark:text-error-400 mt-1">{formatCurrency(summaryData.expenses)}</h3>
+                </div>
+                <div className="h-12 w-12 bg-error-100 dark:bg-error-800/30 rounded-full flex items-center justify-center">
+                  <TrendingDown className="h-6 w-6 text-error-600 dark:text-error-400" />
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+
+          {showSavings && (
+            <Card className="bg-white dark:bg-gray-800">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Economias</p>
+                    <h3 className="text-2xl font-bold text-warning-600 dark:text-warning-400 mt-1">{formatCurrency(summaryData.savings)}</h3>
+                  </div>
+                  <div className="h-12 w-12 bg-warning-100 dark:bg-warning-800/30 rounded-full flex items-center justify-center">
+                    <Target className="h-6 w-6 text-warning-600 dark:text-warning-400" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </>
       )}
     </div>
   );

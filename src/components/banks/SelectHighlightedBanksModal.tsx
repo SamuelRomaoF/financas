@@ -1,9 +1,9 @@
-import { useState, useEffect, ChangeEvent } from 'react';
-import { X, ListChecks, AlertTriangle } from 'lucide-react';
+import { AlertTriangle, ListChecks, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import Button from '../ui/Button';
 import type { BankAccount } from '../../types/finances'; // Importação corrigida
 import { getBankInitials } from '../../utils/strings'; // Importar getBankInitials
+import Button from '../ui/Button';
 
 interface SelectHighlightedBanksModalProps {
   isOpen: boolean;
@@ -101,7 +101,11 @@ export default function SelectHighlightedBanksModal({
                 <div className="flex-grow">
                   <span className="block text-sm font-medium text-gray-800 dark:text-gray-100">{account.bankName}</span>
                   <span className="block text-xs text-gray-500 dark:text-gray-400">
-                    {account.accountType === 'corrente' ? 'Conta Corrente' : 'Poupança'} - Saldo: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(account.balance)}
+                    {account.accountType === 'checking' 
+                      ? 'Conta Corrente' 
+                      : account.accountType === 'savings' 
+                        ? 'Poupança' 
+                        : 'Investimento'} - Saldo: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(account.balance)}
                   </span>
                 </div>
                 {selectedIds.includes(account.id) && (
