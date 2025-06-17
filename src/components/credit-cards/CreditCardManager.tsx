@@ -7,7 +7,7 @@ import { SaveableCreditCardData } from '../../types/finances';
 import { formatCurrency } from '../../utils/formatCurrency';
 import AddCardModal from './AddCardModal';
 
-interface CreditCard {
+export interface CreditCard {
   id: string;
   name: string;
   number: string;
@@ -29,6 +29,7 @@ interface CreditCard {
     isInstallment: boolean;
     installmentInfo: string;
     originalAmount: number;
+    installmentNumber?: number;
   }>;
   selected?: boolean;
 }
@@ -105,7 +106,7 @@ export default function CreditCardManager() {
           currentInvoice,
           nextInvoice,
           recentTransactions: [], // Inicialmente sem transações
-          selected: false // Inicialmente não selecionado
+          selected: false, // Inicialmente não selecionado
         };
       });
       
@@ -143,29 +144,54 @@ export default function CreditCardManager() {
               isInstallment: Boolean(t.installments_total && t.installments_total > 1),
               installmentInfo: t.installment_number && t.installments_total ? 
                 `${t.installment_number}/${t.installments_total}` : '',
-              originalAmount: t.original_amount
+              originalAmount: t.original_amount,
+              installmentNumber: t.installment_number
             }));
             
           console.log(`Cartão ${card.name}: encontradas ${cardTransactions.length} transações`);
           
           // Calcular fatura atual (soma das transações vinculadas a este cartão)
-          // Usamos apenas o valor das parcelas, não o valor total
-          const currentInvoice = cardTransactions.reduce((sum, t) => sum + t.amount, 0);
+          // Na aba cartão, usamos o valor total (original_amount) para transações parceladas
+          const currentInvoice = cardTransactions.reduce((sum, t) => {
+            if (t.isInstallment && t.originalAmount) {
+              // Se for uma transação parcelada com installment_number === 1, usamos o valor total
+              return t.installmentNumber === 1 ? sum + t.originalAmount : sum;
+            } else {
+              // Para transações normais, usamos o valor normal
+              return sum + t.amount;
+            }
+          }, 0);
           
           // Para o limite utilizado, precisamos buscar todas as transações (não apenas as 5 recentes)
           // para calcular corretamente
           const allCardTransactions = allTransactions.filter(t => t.credit_card_id === card.id);
           
           // Calcular o valor correto para o limite utilizado do cartão:
-          // Soma dos valores das parcelas, não dos valores totais
-          const currentSpending = allCardTransactions.reduce((sum, t) => sum + t.amount, 0);
+          // Na aba cartão, usamos o valor total (original_amount) para transações parceladas
+          // em vez do valor das parcelas (amount)
+          const currentSpending = allCardTransactions.reduce((sum, t) => {
+            // Se for uma transação parcelada (tem original_amount e installment_number === 1)
+            // usamos o valor total da compra
+            if (t.original_amount && t.installment_number === 1) {
+              return sum + t.original_amount;
+            }
+            // Para transações parceladas que não são a primeira parcela, ignoramos
+            // para evitar contar duas vezes
+            else if (t.installment_number && t.installment_number > 1) {
+              return sum;
+            }
+            // Para transações normais, usamos o valor normal
+            else {
+              return sum + t.amount;
+            }
+          }, 0);
             
           return {
             ...card,
             recentTransactions: cardTransactions,
             currentInvoice: currentInvoice,
-            // Atualizar o gasto atual para mostrar a soma das parcelas
-            currentSpending: currentSpending
+            // Atualizar o gasto atual para mostrar o valor total das compras parceladas
+            currentSpending: currentSpending,
           };
         });
         

@@ -82,19 +82,19 @@ export default function LoginPage() {
           throw new Error(`Credenciais inválidas. Você tem mais ${newRateLimit.attemptsLeft} tentativa(s).`);
         } else {
           // Verificar se é erro de email não confirmado
-          if (error instanceof AuthError && error.message.includes('Email not confirmed')) {
-            setIsEmailNotConfirmed(true);
-            throw new Error('Por favor, confirme seu email antes de fazer login. Verifique sua caixa de entrada.');
-          }
-          throw error;
+        if (error instanceof AuthError && error.message.includes('Email not confirmed')) {
+          setIsEmailNotConfirmed(true);
+          throw new Error('Por favor, confirme seu email antes de fazer login. Verifique sua caixa de entrada.');
         }
+        throw error;
+      }
       }
       
       // Login bem-sucedido, limpar rate limit
       clearRateLimit(formData.email);
-      
+
       const hasAccess = await checkAccess();
-      
+
       if (!hasAccess) {
         console.log('Usuário não tem acesso, criando assinatura de teste...');
         let subscriptionError = null;

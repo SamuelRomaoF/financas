@@ -124,18 +124,18 @@ export function BankAccountProvider({ children }: { children: React.ReactNode })
         .order('created_at', { ascending: false });
         
       if (error) throw error;
-      
+
       console.log("Contas bancárias encontradas:", data?.length || 0);
       
       // Processar dados para o formato correto
       const processedAccounts: BankAccount[] = data?.map(account => ({
-        id: account.id,
+          id: account.id,
         userId: account.user_id,
-        bankName: account.name,
+          bankName: account.name,
         accountType: mapAccountType(account.type),
         accountNumber: account.account,
         agency: account.agency,
-        balance: account.balance || 0,
+          balance: account.balance || 0,
         currency: 'BRL', // Definindo moeda padrão como BRL
         color: account.color || '#6366F1',
         pendingTransactionsCount: account.pending_count || 0,
@@ -189,7 +189,7 @@ export function BankAccountProvider({ children }: { children: React.ReactNode })
     
     try {
       console.log("Criando nova conta bancária:", account);
-      
+
       const { data, error } = await supabase
         .from('banks')
         .insert({
@@ -219,7 +219,7 @@ export function BankAccountProvider({ children }: { children: React.ReactNode })
           balance: data[0].balance || 0,
           currency: 'BRL',
           color: data[0].color || '#6366F1',
-          pendingTransactionsCount: 0,
+            pendingTransactionsCount: 0, 
           scheduledTransactionsCount: 0
         };
         
@@ -276,8 +276,8 @@ export function BankAccountProvider({ children }: { children: React.ReactNode })
       console.log("Excluindo conta bancária:", id);
       
       const { error } = await supabase
-        .from('banks')
-        .delete()
+            .from('banks')
+            .delete()
         .eq('id', id);
         
       if (error) throw error;
@@ -300,7 +300,7 @@ export function BankAccountProvider({ children }: { children: React.ReactNode })
 
   return (
     <BankAccountContext.Provider value={{
-      accounts,
+        accounts,
       loading,
       fetchAccounts,
       createAccount,

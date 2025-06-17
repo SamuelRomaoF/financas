@@ -88,14 +88,66 @@ export default function WalletPage() {
           color: card.color || '#6366F1'
         };
       });
+
+      // Buscar todas as transações do usuário para calcular o valor total das compras parceladas
+      const { data: allTransactions, error: transactionsError } = await supabase
+        .from('transactions')
+        .select('id, amount, credit_card_id, installments_total, installment_number, original_amount')
+        .eq('user_id', user.id)
+        .eq('type', 'expense')
+        .order('date', { ascending: false })
+        .limit(100); // Aumentado para 100 para garantir que temos transações suficientes
       
-      setCardsData(formattedCards);
-      
-      // Forçar atualização dos valores calculados
-      const total = formattedCards.reduce((total, card) => total + (card.limit || 0), 0);
-      const available = formattedCards.reduce((total, card) => total + ((card.limit || 0) - (card.currentSpending || 0)), 0);
-      
-      console.log(`WalletPage: Limite total atualizado: ${total}, Disponível: ${available}`);
+      if (transactionsError) {
+        console.error('Erro ao buscar transações:', transactionsError);
+      } else if (allTransactions && allTransactions.length > 0) {
+        // Atualizar o currentSpending de cada cartão com base nas transações
+        const updatedCards = formattedCards.map(card => {
+          // Filtrar transações deste cartão
+          const cardTransactions = allTransactions.filter(t => t.credit_card_id === card.id);
+          
+          // Calcular o valor correto para o limite utilizado do cartão:
+          // Na aba cartão, usamos o valor total (original_amount) para transações parceladas
+          // em vez do valor das parcelas (amount)
+          const currentSpending = cardTransactions.reduce((sum, t) => {
+            // Se for uma transação parcelada (tem original_amount e installment_number === 1)
+            // usamos o valor total da compra
+            if (t.original_amount && t.installment_number === 1) {
+              return sum + t.original_amount;
+            }
+            // Para transações parceladas que não são a primeira parcela, ignoramos
+            // para evitar contar duas vezes
+            else if (t.installment_number && t.installment_number > 1) {
+              return sum;
+            }
+            // Para transações normais, usamos o valor normal
+            else {
+              return sum + t.amount;
+            }
+          }, 0);
+          
+          return {
+            ...card,
+            currentSpending: currentSpending
+          };
+        });
+        
+        setCardsData(updatedCards);
+        
+        // Log para debug
+        const total = updatedCards.reduce((total, card) => total + (card.limit || 0), 0);
+        const available = updatedCards.reduce((total, card) => total + ((card.limit || 0) - (card.currentSpending || 0)), 0);
+        
+        console.log(`WalletPage: Limite total atualizado: ${total}, Disponível: ${available}`);
+      } else {
+        setCardsData(formattedCards);
+        
+        // Log para debug
+        const total = formattedCards.reduce((total, card) => total + (card.limit || 0), 0);
+        const available = formattedCards.reduce((total, card) => total + ((card.limit || 0) - (card.currentSpending || 0)), 0);
+        
+        console.log(`WalletPage: Limite total atualizado: ${total}, Disponível: ${available}`);
+      }
       
     } catch (error) {
       console.error('Erro ao buscar cartões de crédito:', error);
@@ -213,6 +265,7 @@ export default function WalletPage() {
   );
 
   // Calcular o limite total disponível (limite total - gastos atuais)
+  // Usamos currentSpending que já considera o valor total das compras parceladas
   const totalAvailableLimit = cardsData.reduce(
     (total, card) => total + ((card.limit || 0) - (card.currentSpending || 0)),
     0

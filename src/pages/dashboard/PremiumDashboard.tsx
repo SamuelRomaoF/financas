@@ -223,7 +223,7 @@ export default function PremiumDashboard() {
           monthlyDataMap.set(monthKey, { receitas: 0, despesas: 0 });
         }
         
-        // Preencher com dados reais
+        // Preencher com dados reais das transações
         transactions.forEach(t => {
           const date = new Date(t.date);
           const monthKey = monthNames[date.getMonth()];
@@ -240,6 +240,43 @@ export default function PremiumDashboard() {
             }
           }
         });
+        
+        // Buscar empréstimos ativos para adicionar ao gráfico
+        const { data: allLoans } = await supabase
+          .from('loans')
+          .select('*')
+          .eq('user_id', user.id)
+          .neq('status', 'quitado');
+          
+        if (allLoans && allLoans.length > 0) {
+          // Adicionar parcelas de empréstimos aos dados mensais
+          allLoans.forEach(loan => {
+            // Calcular os meses de pagamento do empréstimo
+            const startDate = new Date(loan.start_date);
+            const installments = loan.installments;
+            const installmentValue = loan.installment_value;
+            
+            // Adicionar cada parcela ao mês correspondente
+            for (let i = 0; i < installments; i++) {
+              const paymentDate = new Date(startDate);
+              paymentDate.setMonth(paymentDate.getMonth() + i);
+              
+              // Verificar se o mês está dentro do período que estamos exibindo (últimos 12 meses)
+              const now = new Date();
+              const twelveMonthsAgo = new Date();
+              twelveMonthsAgo.setMonth(now.getMonth() - 11);
+              
+              if (paymentDate >= twelveMonthsAgo && paymentDate <= now) {
+                const monthKey = monthNames[paymentDate.getMonth()];
+                if (monthlyDataMap.has(monthKey)) {
+                  const monthData = monthlyDataMap.get(monthKey)!;
+                  // Adicionar o valor da parcela às despesas do mês
+                  monthData.despesas += installmentValue;
+                }
+              }
+            }
+          });
+        }
         
         // Converter para array
         const formattedMonthlyData = Array.from(monthlyDataMap.entries()).map(([name, data]) => ({

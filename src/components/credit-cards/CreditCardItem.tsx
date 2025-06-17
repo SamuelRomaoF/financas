@@ -55,7 +55,8 @@ export default function CreditCardItem({ card, onEdit, onRemove }: CreditCardIte
             ...t,
             isInstallment: Boolean(t.installments_total && t.installments_total > 1),
             installmentInfo: t.installment_number && t.installments_total ? 
-              `${t.installment_number}/${t.installments_total}` : ''
+              `${t.installment_number}/${t.installments_total}` : '',
+            installmentNumber: t.installment_number
           }));
           
           setRecentTransactions(formattedTransactions);
@@ -63,14 +64,32 @@ export default function CreditCardItem({ card, onEdit, onRemove }: CreditCardIte
           // Calcular o total gasto considerando todas as transações
           const { data: allTransactions, error: allError } = await supabase
             .from('transactions')
-            .select('amount')
+            .select('amount, original_amount, installment_number, installments_total')
             .eq('credit_card_id', card.id)
             .eq('type', 'expense');
             
           if (!allError && allTransactions) {
-            const total = allTransactions.reduce((sum, t) => sum + t.amount, 0);
-          setCurrentSpending(total);
-          console.log(`Total gasto no cartão ${card.name}: ${total}`);
+            // Na aba cartão, usamos o valor total (original_amount) para transações parceladas
+            // em vez do valor das parcelas (amount)
+            const total = allTransactions.reduce((sum, t) => {
+              // Se for uma transação parcelada (tem original_amount e installment_number === 1)
+              // usamos o valor total da compra
+              if (t.original_amount && t.installment_number === 1) {
+                return sum + t.original_amount;
+              }
+              // Para transações parceladas que não são a primeira parcela, ignoramos
+              // para evitar contar duas vezes
+              else if (t.installment_number && t.installment_number > 1) {
+                return sum;
+              }
+              // Para transações normais, usamos o valor normal
+              else {
+                return sum + t.amount;
+              }
+            }, 0);
+            
+            setCurrentSpending(total);
+            console.log(`Total gasto no cartão ${card.name}: ${total}`);
           }
         }
       } catch (error) {
@@ -249,11 +268,14 @@ export default function CreditCardItem({ card, onEdit, onRemove }: CreditCardIte
                       </div>
                       <div className="text-right">
                       <p className="text-sm text-red-600 dark:text-red-400">
-                        {formatCurrency(transaction.amount)}
+                        {transaction.isInstallment ? 
+                          formatCurrency(transaction.original_amount || transaction.amount) :
+                          formatCurrency(transaction.amount)
+                        }
                       </p>
                         {transaction.isInstallment && transaction.original_amount && (
                           <p className="text-xs text-gray-500 dark:text-gray-400">
-                            Total: {formatCurrency(transaction.original_amount)}
+                            Parcela: {formatCurrency(transaction.amount)}
                           </p>
                         )}
                       </div>
