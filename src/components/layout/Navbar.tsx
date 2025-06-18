@@ -4,6 +4,39 @@ import toast from 'react-hot-toast';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 
+// Estilos CSS personalizados para animações
+const customStyles = `
+  @keyframes fade-in-up {
+    0% {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  @keyframes fade-in-down {
+    0% {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  .animate-fade-in-up {
+    animation: fade-in-up 0.3s ease-out forwards;
+  }
+  
+  .animate-fade-in-down {
+    animation: fade-in-down 0.3s ease-out forwards;
+  }
+`;
+
 interface NavbarProps {
   variant?: 'public' | 'auth' | 'app';
 }
@@ -15,7 +48,23 @@ export default function Navbar({ variant = 'public' }: NavbarProps) {
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const navigate = useNavigate();
+
+  // Detectar rolagem da página para mudar aparência da navbar
+  useEffect(() => {
+    const handleScroll = () => {
+      const isScrolled = window.scrollY > 10;
+      if (isScrolled !== scrolled) {
+        setScrolled(isScrolled);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, [scrolled]);
 
   useEffect(() => {
     console.log('Estado do usuário na Navbar:', user);
@@ -49,15 +98,15 @@ export default function Navbar({ variant = 'public' }: NavbarProps) {
     if (!showAccountModal) return null;
 
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg shadow-xl w-full max-w-md relative">
+      <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-md relative animate-fade-in-up">
           {/* Botão de fechar */}
           <button 
             onClick={() => {
               setShowAccountModal(false);
               setShowDeleteConfirm(false);
             }}
-            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors duration-300"
           >
             <X size={24} />
           </button>
@@ -87,7 +136,7 @@ export default function Navbar({ variant = 'public' }: NavbarProps) {
               {!showDeleteConfirm ? (
                 <button
                   onClick={() => setShowDeleteConfirm(true)}
-                  className="w-full px-4 py-2 text-red-600 border border-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                  className="w-full px-4 py-2 text-red-600 border border-red-600 rounded-lg hover:bg-red-50 transition-all duration-300"
                 >
                   Excluir minha conta
                 </button>
@@ -129,17 +178,21 @@ export default function Navbar({ variant = 'public' }: NavbarProps) {
     if (variant === 'public') {
       return (
         <>
-          <a href="#recursos" className="text-neutral-600 hover:text-primary-500 text-sm font-medium">
+          <a href="#recursos" className="text-neutral-600 hover:text-primary-500 font-medium transition-colors duration-300 relative group">
             Recursos
+            <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary-500 group-hover:w-full transition-all duration-300"></span>
           </a>
-          <a href="#como-funciona" className="text-neutral-600 hover:text-primary-500 text-sm font-medium">
+          <a href="#como-funciona" className="text-neutral-600 hover:text-primary-500 font-medium transition-colors duration-300 relative group">
             Como funciona
+            <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary-500 group-hover:w-full transition-all duration-300"></span>
           </a>
-          <a href="#planos" className="text-neutral-600 hover:text-primary-500 text-sm font-medium">
+          <a href="#planos" className="text-neutral-600 hover:text-primary-500 font-medium transition-colors duration-300 relative group">
             Planos
+            <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary-500 group-hover:w-full transition-all duration-300"></span>
           </a>
-          <a href="#perguntas" className="text-neutral-600 hover:text-primary-500 text-sm font-medium">
+          <a href="#perguntas" className="text-neutral-600 hover:text-primary-500 font-medium transition-colors duration-300 relative group">
             Perguntas
+            <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary-500 group-hover:w-full transition-all duration-300"></span>
           </a>
         </>
       );
@@ -165,24 +218,24 @@ export default function Navbar({ variant = 'public' }: NavbarProps) {
         <div className="relative">
           <button 
             onClick={() => setUserMenuOpen(!userMenuOpen)}
-            className="flex items-center gap-2 hover:bg-gray-50 p-2 rounded-lg transition-colors"
+            className="flex items-center gap-2 hover:bg-gray-50 p-2 rounded-lg transition-all duration-300"
           >
-            <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
-              <User className="h-4 w-4 text-blue-500" />
+            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center shadow-sm">
+              <User className="h-4 w-4 text-white" />
             </div>
-            <span className="text-sm text-gray-700">
+            <span className="text-sm font-medium text-gray-700">
               {user.user_metadata?.name || 'Usuário'}
             </span>
           </button>
 
           {/* Menu Dropdown */}
           {userMenuOpen && (
-            <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 divide-y divide-gray-100 z-50">
+            <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 divide-y divide-gray-100 z-50 animate-fade-in-down backdrop-blur-sm">
               <div>
                 <Link
                   to="/dashboard"
                   onClick={() => setUserMenuOpen(false)}
-                  className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
+                  className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-primary-50 hover:text-primary-600 cursor-pointer transition-colors duration-200"
                 >
                   <div className="flex items-center gap-2">
                     <BrainCircuit className="h-4 w-4" />
@@ -194,7 +247,7 @@ export default function Navbar({ variant = 'public' }: NavbarProps) {
                     setShowAccountModal(true);
                     setUserMenuOpen(false);
                   }}
-                  className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
+                  className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-primary-50 hover:text-primary-600 cursor-pointer transition-colors duration-200"
                 >
                   <div className="flex items-center gap-2">
                     <User className="h-4 w-4" />
@@ -205,7 +258,7 @@ export default function Navbar({ variant = 'public' }: NavbarProps) {
               <div>
                 <a
                   onClick={handleSignOut}
-                  className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
+                  className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-primary-50 hover:text-primary-600 cursor-pointer transition-colors duration-200"
                 >
                   <div className="flex items-center gap-2">
                     <LogOut className="h-4 w-4" />
@@ -220,26 +273,41 @@ export default function Navbar({ variant = 'public' }: NavbarProps) {
     }
 
     return (
-      <div className="flex items-center space-x-3">
-        <Link to="/login" className="text-neutral-700 hover:text-primary-600 text-sm font-medium">
+      <div className="flex items-center space-x-4">
+        <Link 
+          to="/login" 
+          className="text-neutral-700 hover:text-primary-600 font-medium transition-colors duration-300 relative group"
+        >
           Entrar
+          <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary-500 group-hover:w-full transition-all duration-300"></span>
         </Link>
-        <Link to="/register" className="btn-primary">
+        <Link 
+          to="/register" 
+          className="bg-primary-500 hover:bg-primary-600 px-4 py-2 text-white font-medium rounded-lg shadow-md hover:shadow-lg transition-all duration-300 hover:scale-[1.03]"
+        >
           Começar grátis
         </Link>
       </div>
     );
   };
 
+  // Estilos do header baseados na rolagem da página
+  const headerClasses = scrolled 
+    ? "fixed w-full top-0 z-40 bg-white/90 backdrop-blur-sm shadow-md border-b border-gray-200/50 transition-all duration-300"
+    : "fixed w-full top-0 z-40 bg-white border-b border-gray-200 transition-all duration-300";
+
   return (
     <>
-      <header className="fixed w-full top-0 z-40 bg-white border-b border-gray-200">
+      <style dangerouslySetInnerHTML={{ __html: customStyles }} />
+      <header className={headerClasses}>
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
-              <Link to="/" className="flex items-center">
-                <BrainCircuit size={32} className="text-primary-500" />
-                <span className="ml-2 text-xl font-bold text-gray-900">
+              <Link to="/" className="flex items-center group">
+                <div className="bg-primary-500/10 rounded-full p-2 group-hover:bg-primary-500/20 transition-all duration-300">
+                  <BrainCircuit size={28} className="text-primary-500" />
+                </div>
+                <span className="ml-2 text-xl font-bold text-gray-900 group-hover:text-primary-600 transition-colors duration-300">
                   Finanças Simplificadas
                 </span>
               </Link>
@@ -253,7 +321,7 @@ export default function Navbar({ variant = 'public' }: NavbarProps) {
             
             {/* Mobile Nav Button */}
             <button 
-              className="md:hidden text-neutral-500"
+              className="md:hidden text-neutral-500 hover:text-neutral-800 transition-colors duration-300"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             >
               {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
@@ -263,34 +331,34 @@ export default function Navbar({ variant = 'public' }: NavbarProps) {
         
         {/* Mobile Menu */}
         {mobileMenuOpen && (
-          <div className="md:hidden px-4 py-3 bg-white border-t border-gray-200">
+          <div className="md:hidden px-4 py-3 bg-white/95 backdrop-blur-sm border-t border-gray-200 animate-fade-in-down">
             <nav className="flex flex-col space-y-3">
               {variant === 'public' && (
                 <>
                   <a 
                     href="#recursos" 
-                    className="text-neutral-600 hover:text-primary-500 py-2 text-base font-medium"
+                    className="text-neutral-600 hover:text-primary-500 py-2 font-medium transition-colors duration-300 border-b border-gray-100"
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     Recursos
                   </a>
                   <a 
                     href="#como-funciona" 
-                    className="text-neutral-600 hover:text-primary-500 py-2 text-base font-medium"
+                    className="text-neutral-600 hover:text-primary-500 py-2 font-medium transition-colors duration-300 border-b border-gray-100"
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     Como funciona
                   </a>
                   <a 
                     href="#planos" 
-                    className="text-neutral-600 hover:text-primary-500 py-2 text-base font-medium"
+                    className="text-neutral-600 hover:text-primary-500 py-2 font-medium transition-colors duration-300 border-b border-gray-100"
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     Planos
                   </a>
                   <a 
                     href="#perguntas" 
-                    className="text-neutral-600 hover:text-primary-500 py-2 text-base font-medium"
+                    className="text-neutral-600 hover:text-primary-500 py-2 font-medium transition-colors duration-300 border-b border-gray-100"
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     Perguntas
@@ -300,11 +368,11 @@ export default function Navbar({ variant = 'public' }: NavbarProps) {
               
               {user ? (
                 <>
-                  <div className="flex items-center space-x-2 py-2">
-                    <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
-                      <User className="h-4 w-4 text-blue-500" />
+                  <div className="flex items-center space-x-2 py-2 border-b border-gray-100">
+                    <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center">
+                      <User className="h-4 w-4 text-white" />
                     </div>
-                    <span className="text-sm text-gray-700">
+                    <span className="text-sm font-medium text-gray-700">
                       {user.user_metadata?.name || 'Usuário'}
                     </span>
                   </div>
@@ -313,7 +381,7 @@ export default function Navbar({ variant = 'public' }: NavbarProps) {
                       setMobileMenuOpen(false);
                       setShowAccountModal(true);
                     }}
-                    className="text-neutral-700 hover:text-primary-600 py-2 text-base font-medium text-left w-full"
+                    className="text-neutral-700 hover:text-primary-600 py-2 font-medium text-left w-full transition-colors duration-300 border-b border-gray-100"
                   >
                     Minha Conta
                   </button>
@@ -322,7 +390,7 @@ export default function Navbar({ variant = 'public' }: NavbarProps) {
                       handleSignOut();
                       setMobileMenuOpen(false);
                     }}
-                    className="text-neutral-700 hover:text-primary-600 py-2 text-base font-medium text-left w-full border-t border-gray-100 mt-2"
+                    className="text-neutral-700 hover:text-primary-600 py-2 font-medium text-left w-full transition-colors duration-300"
                   >
                     Sair
                   </button>
@@ -331,14 +399,14 @@ export default function Navbar({ variant = 'public' }: NavbarProps) {
                 <>
                   <Link 
                     to="/login" 
-                    className="text-neutral-700 hover:text-primary-600 py-2 text-base font-medium"
+                    className="text-neutral-700 hover:text-primary-600 py-2 font-medium transition-colors duration-300 border-b border-gray-100"
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     Entrar
                   </Link>
                   <Link 
                     to="/register" 
-                    className="btn-primary w-full justify-center"
+                    className="bg-primary-500 hover:bg-primary-600 mt-2 px-4 py-2 text-center text-white font-medium rounded-lg shadow-md hover:shadow-lg transition-all duration-300"
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     Começar grátis
@@ -352,6 +420,9 @@ export default function Navbar({ variant = 'public' }: NavbarProps) {
 
       {/* Modal de conta */}
       {renderAccountModal()}
+
+      {/* Espaçador para compensar o header fixo */}
+      <div className="h-16"></div>
     </>
   );
 } 
